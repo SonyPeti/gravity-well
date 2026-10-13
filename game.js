@@ -300,14 +300,29 @@ const stardustForWave = w => Math.max(1, Math.floor((1 + w * 0.5) * metaVal('sSt
 // ============================================================
 const canvas = $('game');
 let ctx = canvas.getContext('2d'); // swapped temporarily to draw the menu planet
+const mainCtx = ctx;
 const stage = $('stage');
 let W = 0, H = 0, DPR = 1, SCALE = 1;
 const bgCanvas = document.createElement('canvas');
 const twinkles = [];
 
+// ---------- Graphics quality: 2 = high, 1 = medium, 0 = low (auto-adjusts to the phone) ----------
+let GFX = 2;
+const GFX_DPR = [1, 1.5, 2];          // canvas resolution
+const GFX_PARTICLES = [90, 200, 350];  // particle cap
+const GFX_BURST = [0.35, 0.6, 1];      // particles per explosion
+const GFX_NAMES = ['Low', 'Medium', 'High'];
+function setGfx(level) {
+  level = Math.max(0, Math.min(2, level));
+  if (level === GFX) return;
+  GFX = level;
+  resize();
+  if (typeof refreshGfxUi === 'function') refreshGfxUi();
+}
+
 function resize() {
   const r = stage.getBoundingClientRect();
-  DPR = Math.min(2, window.devicePixelRatio || 1);
+  DPR = Math.min(GFX_DPR[GFX], window.devicePixelRatio || 1);
   W = r.width; H = r.height;
   canvas.width = Math.round(W * DPR);
   canvas.height = Math.round(H * DPR);
@@ -702,7 +717,8 @@ function pulseBlast() {
 
 // ---------- Effects ----------
 function burst(x, y, color, count, suck) {
-  for (let i = 0; i < count && run.particles.length < 350; i++) {
+  count = Math.ceil(count * GFX_BURST[GFX]);
+  for (let i = 0; i < count && run.particles.length < GFX_PARTICLES[GFX]; i++) {
     const a = Math.random() * TAU;
     const s = rand(30, 110);
     const life = suck ? rand(1.2, 2) : rand(0.3, 0.6);
@@ -1193,6 +1209,7 @@ function update(dt) {
   r.bullets = r.bullets.filter(b => b.life > 0);
   r.eBullets = r.eBullets.filter(b => !b.dead && Math.hypot(b.x, b.y) < 600);
   r.particles = r.particles.filter(p => p.life > 0);
+  if (r.particles.length > GFX_PARTICLES[GFX]) r.particles.splice(0, r.particles.length - GFX_PARTICLES[GFX]);
   r.texts = r.texts.filter(t => t.life > 0);
   r.waves = r.waves.filter(w => w.t > 0);
   r.holes = r.holes.filter(h => h.t > 0);
@@ -1211,9 +1228,17 @@ function binaryStarPos() {
 // ============================================================
 //  Render
 // ============================================================
+const ENEMY_COLORS = {
+  drifter: '#FF5A4E', comet: '#8FD8FF', scout: '#FF3D7F', molten: '#FF8A2A', wraith: '#9B5CFF', worm: '#FF3B3B', mother: '#FF3D7F',
+  sentinel: '#4AA8FF', blinker: '#FF4FD8', hive: '#7DFF8A', swarmer: '#7DFF8A',
+};
+// [size multiplier, rotation mode]: 'spin' = tumbles, 'face' = points at the planet, 'up' = stays upright
+const SPRITE_DRAW = {
+  drifter: [2.9, 'spin'], molten: [2.9, 'spin'], comet: [3.6, 'face'], scout: [3, 'face'], wraith: [3.2, 'up'],
+  worm: [3.6, 'up'], mother: [2.9, 'up'], sentinel: [3, 'face'], blinker: [3.6, 'face'], hive: [2.9, 'spin'], swarmer: [3, 'spin'],
+};
 function enemyColor(type) {
-  return { drifter: '#FF5A4E', comet: '#8FD8FF', scout: '#FF3D7F', molten: '#FF8A2A', wraith: '#9B5CFF', worm: '#FF3B3B', mother: '#FF3D7F',
-           sentinel: '#4AA8FF', blinker: '#FF4FD8', hive: '#7DFF8A', swarmer: '#7DFF8A' }[type];
+  return ENEMY_COLORS[type];
 }
 
 function jagged(x, y, r, verts, rot) {
@@ -1246,7 +1271,16 @@ function tintedSprite(name, color) {
   return (tintCache[key] = c);
 }
 
+// While drawing the world, sprites set their transform directly (much cheaper than save/restore)
+let worldK = 0, worldX = 0, worldY = 0;
 function drawSprite(img, x, y, size, rot) {
+  if (worldK && ctx === mainCtx) {
+    const cs = Math.cos(rot || 0) * worldK, sn = Math.sin(rot || 0) * worldK;
+    ctx.setTransform(cs, sn, -sn, cs, worldX + x * worldK, worldY + y * worldK);
+    ctx.drawImage(img, -size / 2, -size / 2, size, size);
+    ctx.setTransform(worldK, 0, 0, worldK, worldX, worldY);
+    return;
+  }
   ctx.save();
   ctx.translate(x, y);
   if (rot) ctx.rotate(rot);
@@ -1301,22 +1335,24 @@ function drawPlanet(x, y, R, t, hurt, sk = skin()) {
   }
 }
 
-function drawOrbital(o, t) {
+function drawOrbital(o, t, noGlow) {
   const def = ORBITALS[o.type];
   const fade = 0.45 + 0.55 * Math.max(0, o.hp / o.maxHp);
-  // Trail
+  // Trail (skipped on low graphics)
   const tr = o.trail;
   ctx.strokeStyle = def.trail;
   ctx.lineCap = 'round';
-  for (let i = 2; i < tr.length; i += 2) {
+  for (let i = GFX === 0 ? tr.length : 2; i < tr.length; i += 2) {
     ctx.globalAlpha = (i / tr.length) * 0.5 * fade;
     ctx.lineWidth = (i / tr.length) * def.r * 1.2;
     ctx.beginPath(); ctx.moveTo(tr[i - 2], tr[i - 1]); ctx.lineTo(tr[i], tr[i + 1]); ctx.stroke();
   }
   ctx.globalAlpha = 1;
-  ctx.globalCompositeOperation = 'lighter';
-  glow(o.x, o.y, def.r * 3, def.trail, 0.4 * fade);
-  ctx.globalCompositeOperation = 'source-over';
+  if (!noGlow) {
+    ctx.globalCompositeOperation = 'lighter';
+    glow(o.x, o.y, def.r * 3, def.trail, 0.4 * fade);
+    ctx.globalCompositeOperation = 'source-over';
+  }
   ctx.globalAlpha = fade;
   const img = o.type === 'star' ? tintedSprite('orb_gold', '#3FF2E0') : sprite('orb_' + o.type);
   const r = def.r;
@@ -1365,22 +1401,20 @@ function drawOrbital(o, t) {
   ctx.globalAlpha = 1;
 }
 
-function drawEnemy(e, t) {
+function drawEnemy(e, t, noGlow) {
   const col = enemyColor(e.type);
-  ctx.globalCompositeOperation = 'lighter';
-  glow(e.x, e.y, e.r * (e.boss ? 2.6 : 2.2), col, e.boss ? 0.45 : 0.3);
-  ctx.globalCompositeOperation = 'source-over';
+  if (!noGlow) {
+    ctx.globalCompositeOperation = 'lighter';
+    glow(e.x, e.y, e.r * (e.boss ? 2.6 : 2.2), col, e.boss ? 0.45 : 0.3);
+    ctx.globalCompositeOperation = 'source-over';
+  }
   const inf = ENEMY_INFO[e.type];
   const spr = inf.tint ? tintedSprite(inf.sprite, inf.tint) : sprite(inf.sprite);
   const face = Math.atan2(-e.y, -e.x);
 
   if (spr) {
-    const SPRITE_DRAW = {
-      drifter: [2.9, e.rot], molten: [2.9, e.rot], comet: [3.6, face + Math.PI / 2],
-      scout: [3, face + Math.PI / 2], wraith: [3.2, 0], worm: [3.6, 0], mother: [2.9, 0],
-      sentinel: [3, face + Math.PI / 2], blinker: [3.6, face + Math.PI / 2], hive: [2.9, e.rot], swarmer: [3, e.rot],
-    };
-    const [size, rot] = SPRITE_DRAW[e.type];
+    const [size, mode] = SPRITE_DRAW[e.type];
+    const rot = mode === 'spin' ? e.rot : mode === 'face' ? face + Math.PI / 2 : 0;
     drawSprite(spr, e.x, e.y, e.r * size, rot);
     if (e.flash > 0) {
       ctx.globalCompositeOperation = 'lighter';
@@ -1483,7 +1517,7 @@ function render(now) {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   if (bgCanvas.width) ctx.drawImage(bgCanvas, 0, 0);
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  for (const s of twinkles) {
+  if (GFX >= 1) for (const s of twinkles) {
     ctx.globalAlpha = 0.25 + 0.5 * (0.5 + 0.5 * Math.sin(t * 1.5 + s.p));
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(s.x, s.y, s.s, s.s);
@@ -1495,7 +1529,8 @@ function render(now) {
 
   const sx = r.shake ? rand(-r.shake, r.shake) : 0;
   const sy = r.shake ? rand(-r.shake, r.shake) : 0;
-  ctx.setTransform(DPR * SCALE, 0, 0, DPR * SCALE, DPR * (W / 2 + sx), DPR * (H / 2 + sy));
+  worldK = DPR * SCALE; worldX = DPR * (W / 2 + sx); worldY = DPR * (H / 2 + sy);
+  ctx.setTransform(worldK, 0, 0, worldK, worldX, worldY);
 
   // Core range (very subtle)
   ctx.strokeStyle = 'rgba(63,242,224,0.08)';
@@ -1539,13 +1574,25 @@ function render(now) {
 
   // Enemy bullets
   ctx.globalCompositeOperation = 'lighter';
-  for (const b of r.eBullets) glow(b.x, b.y, 7, '#FF3D7F', 0.9);
+  if (GFX >= 1) for (const b of r.eBullets) glow(b.x, b.y, 7, '#FF3D7F', 0.9);
   ctx.globalCompositeOperation = 'source-over';
   ctx.fillStyle = '#FFD0E0';
   for (const b of r.eBullets) { ctx.beginPath(); ctx.arc(b.x, b.y, 2, 0, TAU); ctx.fill(); }
 
-  for (const e of r.enemies) drawEnemy(e, tt);
-  for (const o of r.orbitals) drawOrbital(o, tt);
+  // All glows in one additive pass (switching blend mode per object is slow on phones)
+  ctx.globalCompositeOperation = 'lighter';
+  for (const e of r.enemies) {
+    if (GFX >= 1 || e.boss) glow(e.x, e.y, e.r * (e.boss ? 2.6 : 2.2), enemyColor(e.type), e.boss ? 0.45 : 0.3);
+  }
+  if (GFX >= 2) {
+    for (const o of r.orbitals) {
+      const d = ORBITALS[o.type];
+      glow(o.x, o.y, d.r * 3, d.trail, 0.4 * (0.45 + 0.55 * Math.max(0, o.hp / o.maxHp)));
+    }
+  }
+  ctx.globalCompositeOperation = 'source-over';
+  for (const e of r.enemies) drawEnemy(e, tt, true);
+  for (const o of r.orbitals) drawOrbital(o, tt, true);
 
   // Drone lasers
   ctx.strokeStyle = '#A8FFF4';
@@ -1558,7 +1605,7 @@ function render(now) {
 
   // Core bullets
   ctx.globalCompositeOperation = 'lighter';
-  for (const b of r.bullets) glow(b.x, b.y, b.crit ? 9 : 6, b.crit ? '#FFD34A' : '#3FF2E0', 0.9);
+  if (GFX >= 1) for (const b of r.bullets) glow(b.x, b.y, b.crit ? 9 : 6, b.crit ? '#FFD34A' : '#3FF2E0', 0.9);
   ctx.globalCompositeOperation = 'source-over';
   ctx.fillStyle = '#ffffff';
   for (const b of r.bullets) { ctx.beginPath(); ctx.arc(b.x, b.y, b.crit ? 2.2 : 1.6, 0, TAU); ctx.fill(); }
@@ -1744,6 +1791,11 @@ function buyUpgrade(u) {
   refreshUpgradeCards();
 }
 
+// Writing the DOM 10x a second makes phones redo layout; skip writes that wouldn't change anything
+function setText(el, v) { v = String(v); if (el._t !== v) { el._t = v; el.textContent = v; } }
+function setHTML(el, v) { if (el._h !== v) { el._h = v; el.innerHTML = v; } }
+function setWidth(el, pct) { const v = pct.toFixed(1) + '%'; if (el._w !== v) { el._w = v; el.style.width = v; } }
+
 function refreshUpgradeCards() {
   if (!run) return;
   for (const u of UPGRADES) {
@@ -1753,17 +1805,17 @@ function refreshUpgradeCards() {
     const lv = run.lv[u.id] || 0;
     const plan = purchasePlan(u);
     const cur = stat(u.id);
-    c.lvl.textContent = 'Lv ' + lv + (u.max ? '/' + u.max : '');
+    setText(c.lvl, 'Lv ' + lv + (u.max ? '/' + u.max : ''));
     if (plan.maxed) {
-      c.value.innerHTML = `<b>${u.show(cur)}</b>`;
-      c.cost.textContent = 'MAX';
+      setHTML(c.value, `<b>${u.show(cur)}</b>`);
+      setHTML(c.cost, 'MAX');
     } else {
       const saved = run.lv[u.id];
       run.lv[u.id] = lv + plan.n;
       const next = stat(u.id);
       run.lv[u.id] = saved;
-      c.value.innerHTML = `<b>${u.show(cur)}</b> → ${u.show(next)}`;
-      c.cost.innerHTML = ICON_E + fmt(plan.cost) + (plan.n > 1 ? `  (x${plan.n})` : '');
+      setHTML(c.value, `<b>${u.show(cur)}</b> → ${u.show(next)}`);
+      setHTML(c.cost, ICON_E + fmt(plan.cost) + (plan.n > 1 ? `  (x${plan.n})` : ''));
     }
     const afford = !plan.maxed && plan.cost <= run.energy;
     c.el.classList.toggle('afford', afford);
@@ -1774,27 +1826,28 @@ function refreshUpgradeCards() {
 
 function refreshHud() {
   if (!run) return;
-  $('hud-wave').textContent = run.wave;
-  $('hud-energy').innerHTML = ICON_E + fmt(run.energy);
-  $('hud-stardust').innerHTML = ICON_S + fmt(save.stardust);
+  setText($('hud-wave'), run.wave);
+  setHTML($('hud-energy'), ICON_E + fmt(run.energy));
+  setHTML($('hud-stardust'), ICON_S + fmt(save.stardust));
   const maxHp = stat('maxHp');
   const frac = Math.max(0, run.hp) / maxHp;
-  $('hp-fill').style.width = (frac * 100) + '%';
+  setWidth($('hp-fill'), frac * 100);
   $('hp-fill').classList.toggle('low', frac < 0.3);
   $('danger').classList.toggle('on', frac < 0.3 && !run.over);
   const boss = run.enemies.find(e => e.boss && !e.dead);
   $('boss-bar').classList.toggle('hidden', !boss);
   if (boss) {
-    $('boss-name').textContent = ENEMY_INFO[boss.type].name;
-    $('boss-fill').style.width = Math.max(0, boss.hp / boss.maxHp * 100) + '%';
+    setText($('boss-name'), ENEMY_INFO[boss.type].name);
+    setWidth($('boss-fill'), Math.max(0, boss.hp / boss.maxHp * 100));
   }
-  $('hp-text').textContent = `${fmt(Math.max(0, run.hp))} / ${fmt(maxHp)}`;
-  $('wave-fill').style.width = Math.min(100, run.waveTime / PACE.waveLen * 100) + '%';
-  $('orbit-count').textContent = `${run.orbitals.length}/${stat('slots')}`;
+  setText($('hp-text'), `${fmt(Math.max(0, run.hp))} / ${fmt(maxHp)}`);
+  setWidth($('wave-fill'), Math.min(100, run.waveTime / PACE.waveLen * 100));
+  setText($('orbit-count'), `${run.orbitals.length}/${stat('slots')}`);
   const cdMax = PULSE_CD * (mc('chainPulse') ? 0.5 : 1);
   const p = 1 - run.pulseCd / cdMax;
   const pb = $('pulse-btn');
-  pb.style.setProperty('--p', p);
+  const pv = p.toFixed(3);
+  if (pb._p !== pv) { pb._p = pv; pb.style.setProperty('--p', pv); }
   pb.classList.toggle('ready', p >= 1);
 }
 
@@ -2067,6 +2120,7 @@ $('bst-wave').addEventListener('input', renderBestiary);
 //  Home base
 // ============================================================
 function refreshLobby() {
+  refreshInstallBanner();
   const gi = Galaxy.info();
   $('lobby-galaxy').textContent = `Galaxy ${gi.n} · ${gi.name}`;
   $('lobby-galaxy').style.color = gi.tint || 'var(--friend)';
@@ -2194,7 +2248,136 @@ document.querySelectorAll('.vol-slider').forEach(s => {
   s.addEventListener('change', () => { if (s.dataset.vol === 'sfxVol') Sound.play('buy'); });
 });
 refreshVolumeSliders();
-$('menu-settings-btn').onclick = () => show('settings');
+$('menu-settings-btn').onclick = () => { refreshGfxUi(); refreshSaveNote(); show('settings'); };
+
+// ---------- Graphics setting ----------
+function refreshGfxUi() {
+  const mode = save.settings.gfx || 'auto';
+  document.querySelectorAll('[data-gfx]').forEach(b => b.classList.toggle('active', b.dataset.gfx === mode));
+  $('gfx-note').textContent = mode === 'auto'
+    ? `Adjusts to your phone automatically (now: ${GFX_NAMES[GFX]})`
+    : mode === 'low' ? 'Fewer effects, smoother on older phones' : 'All effects, sharpest picture';
+}
+document.querySelectorAll('[data-gfx]').forEach(b => {
+  b.onclick = () => {
+    save.settings.gfx = b.dataset.gfx;
+    setGfx(b.dataset.gfx === 'low' ? 0 : b.dataset.gfx === 'high' ? 2 : (save.settings.gfxAuto ?? 2));
+    persist();
+    refreshGfxUi();
+  };
+});
+
+// ---------- Save codes: back up / move progress between devices ----------
+// Format: GW1.<base64 of the save JSON>.<checksum>
+function checksum(str) {
+  let h = 5381;
+  for (let i = 0; i < str.length; i++) h = (h * 33 + str.charCodeAt(i)) >>> 0;
+  return h.toString(36);
+}
+function exportSave() {
+  persist();
+  const json = JSON.stringify(save);
+  const bytes = new TextEncoder().encode(json);
+  let bin = '';
+  for (const b of bytes) bin += String.fromCharCode(b);
+  const body = btoa(bin);
+  return `GW1.${body}.${checksum(body)}`;
+}
+function parseSaveCode(code) {
+  const parts = code.trim().replace(/\s+/g, '').split('.');
+  if (parts.length !== 3 || parts[0] !== 'GW1') throw new Error("That doesn't look like a Gravity Well save code.");
+  if (checksum(parts[1]) !== parts[2]) throw new Error('The code is incomplete or was changed. Copy it again.');
+  const bin = atob(parts[1]);
+  const data = JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, ch => ch.charCodeAt(0))));
+  if (typeof data !== 'object' || data.bestWave === undefined) throw new Error('This save code is missing data.');
+  return data;
+}
+function refreshSaveNote() {
+  const t = save.lastBackup;
+  $('save-note').textContent = t
+    ? `Last backup: ${new Date(t).toLocaleDateString()}. Galaxy ${save.galaxy || 1}, best wave ${save.bestWave}.`
+    : 'No backup yet. Copy your save code and keep it somewhere safe (notes, email).';
+}
+$('save-copy').onclick = async () => {
+  const code = exportSave();
+  let ok = false;
+  try { await navigator.clipboard.writeText(code); ok = true; } catch (e) { /* clipboard blocked */ }
+  if (!ok) {
+    // Fallback: show the code so it can be copied by hand
+    $('save-load').classList.remove('hidden');
+    $('save-input').value = code;
+    $('save-input').select();
+  }
+  save.lastBackup = Date.now();
+  persist();
+  refreshSaveNote();
+  $('save-copy').textContent = ok ? 'Copied ✓' : 'Select & copy ↓';
+  setTimeout(() => { $('save-copy').textContent = 'Copy save code'; }, 2500);
+};
+$('save-download').onclick = () => {
+  const blob = new Blob([exportSave()], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `gravity-well-save-${new Date().toISOString().slice(0, 10)}.txt`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  save.lastBackup = Date.now();
+  persist();
+  refreshSaveNote();
+};
+$('save-load-toggle').onclick = () => $('save-load').classList.toggle('hidden');
+let loadArmed = null;
+$('save-load-btn').onclick = () => {
+  const msg = $('save-msg');
+  let data;
+  try { data = parseSaveCode($('save-input').value); }
+  catch (e) { msg.className = 'small err'; msg.textContent = e.message; return; }
+  if (loadArmed !== $('save-input').value) {
+    // Two taps: loading replaces everything on this device
+    loadArmed = $('save-input').value;
+    msg.className = 'small';
+    msg.textContent = `Found: Galaxy ${data.galaxy || 1}, best wave ${data.bestWave}, ✦${fmt(data.stardust || 0)}. Tap "Load save" again to replace your current progress.`;
+    return;
+  }
+  // Replace the in-memory save too, so the page doesn't write the old one back while reloading
+  for (const k of Object.keys(save)) delete save[k];
+  Object.assign(save, defaultSave(), data);
+  persist();
+  msg.className = 'small ok';
+  msg.textContent = 'Loaded! Restarting…';
+  setTimeout(() => location.reload(), 600);
+};
+
+// Ask the browser to never auto-clear our storage (granted for installed/engaged apps)
+if (navigator.storage && navigator.storage.persist) {
+  navigator.storage.persisted().then(p => { if (!p) navigator.storage.persist().catch(() => {}); }).catch(() => {});
+}
+
+// ---------- Install nudge (installed apps keep their data) ----------
+let installPrompt = null;
+const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; refreshInstallBanner(); });
+function refreshInstallBanner() {
+  const snoozed = save.tips.installSnooze && Date.now() < save.tips.installSnooze;
+  const show = !isStandalone() && save.bestWave >= 5 && !snoozed && (installPrompt || isIOS);
+  $('install-banner').classList.toggle('hidden', !show);
+}
+$('install-btn').onclick = async () => {
+  if (installPrompt) {
+    installPrompt.prompt();
+    try { await installPrompt.userChoice; } catch (e) { /* ignore */ }
+    installPrompt = null;
+    refreshInstallBanner();
+  } else {
+    $('install-ios').classList.remove('hidden');
+  }
+};
+$('install-x').onclick = () => {
+  save.tips.installSnooze = Date.now() + 3 * 24 * 3600 * 1000; // ask again in 3 days
+  persist();
+  refreshInstallBanner();
+};
 $('menu-galaxy-btn').onclick = () => show('galaxy');
 $('galaxy-close').onclick = () => { buildBackground(); show('menu'); };
 $('auto-buy').onclick = () => {
@@ -2253,8 +2436,31 @@ window.addEventListener('pagehide', markSeen);
 // ============================================================
 let last = performance.now();
 let uiTimer = 0;
+const fpsMon = { frames: 0, time: 0, good: 0, holdUntil: 0 };
+function monitorFps(raw, now) {
+  const mode = save.settings.gfx || 'auto';
+  if (mode !== 'auto') return;
+  // Only judge real gameplay (menus and paused screens don't count)
+  if (!run || paused || run.over || document.hidden || raw > 0.5) { fpsMon.frames = 0; fpsMon.time = 0; return; }
+  fpsMon.frames++;
+  fpsMon.time += raw;
+  if (fpsMon.time < 3) return;
+  const fps = fpsMon.frames / fpsMon.time;
+  fpsMon.frames = 0; fpsMon.time = 0;
+  if (fps < 45 && GFX > 0) {
+    setGfx(GFX - 1);
+    save.settings.gfxAuto = GFX;
+    fpsMon.good = 0;
+    fpsMon.holdUntil = now + 60000; // don't flip back up for a minute
+  } else if (fps > 57 && now > fpsMon.holdUntil) {
+    if (++fpsMon.good >= 4 && GFX < 2) { setGfx(GFX + 1); save.settings.gfxAuto = GFX; fpsMon.good = 0; }
+  } else fpsMon.good = 0;
+}
+
 function frame(now) {
-  const dt = Math.min(0.1, (now - last) / 1000);
+  const raw = (now - last) / 1000;
+  monitorFps(raw, now);
+  const dt = Math.min(0.1, raw);
   last = now;
   if (slowmoLeft > 0) { slowmoLeft -= dt; if (slowmoLeft <= 0) timeScale = 1; }
   if (run && !paused) {
@@ -2279,6 +2485,7 @@ let lastHeartbeat = 0;
 
 buildUpgradeCards();
 equipSkin(save.skin);
+GFX = save.settings.gfx === 'low' ? 0 : save.settings.gfx === 'high' ? 2 : (save.settings.gfxAuto ?? 2);
 Ads.setNoAds(save.noAds);
 if (!save.galaxy) save.galaxy = 1;
 if (save.galaxyBest === undefined) save.galaxyBest = save.bestWave || 0;

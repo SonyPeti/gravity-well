@@ -83,6 +83,12 @@
     <button id="menu-bestiary-btn" class="tile"><img src="assets/enemy_scout.png" alt=""><span>Bestiary</span></button>
     <button id="menu-galaxy-btn" class="tile wide galaxy-tile"><img src="assets/mut_blackHole.png" alt=""><span>Galaxy<small id="galaxy-tile-sub">Constellations &amp; new galaxies</small></span></button>
   </div>
+  <div id="install-banner" class="install-banner hidden">
+    <span>📲 <b>Install the app</b> so your progress is never lost</span>
+    <button id="install-btn" class="chip active">Install</button>
+    <button id="install-x" class="chip" aria-label="Dismiss">✕</button>
+    <div id="install-ios" class="install-ios hidden">On iPhone: tap <b>Share ⬆</b>, then <b>Add to Home Screen</b>.</div>
+  </div>
   <button id="play-btn" class="btn primary play-big">PLAY</button>
   <div class="sound-row">
     <button id="menu-settings-btn" class="chip">⚙️ Settings</button>
@@ -106,6 +112,29 @@
     <div class="vol-row"><span>🎵 Music</span><input type="range" class="vol-slider" data-vol="musicVol" min="0" max="100"><b class="vol-val"></b></div>
     <div class="vol-row"><span>🔊 Sound</span><input type="range" class="vol-slider" data-vol="sfxVol" min="0" max="100"><b class="vol-val"></b></div>
     <div class="sound-row"><button class="chip snd-toggle" data-snd="vibe">📳 Vibrate</button></div>
+    <div class="set-row">
+      <span>🎨 Graphics</span>
+      <div class="seg mini">
+        <button class="seg-btn" data-gfx="auto">Auto</button>
+        <button class="seg-btn" data-gfx="high">High</button>
+        <button class="seg-btn" data-gfx="low">Low</button>
+      </div>
+    </div>
+    <p class="muted small" id="gfx-note"></p>
+    <div class="save-box">
+      <div class="save-title">💾 Your progress</div>
+      <p class="muted small" id="save-note">Back up your save so you never lose it.</p>
+      <div class="btn-row">
+        <button id="save-copy" class="btn">Copy save code</button>
+        <button id="save-download" class="btn">Download</button>
+      </div>
+      <button id="save-load-toggle" class="link-btn">Load a save code…</button>
+      <div id="save-load" class="hidden">
+        <textarea id="save-input" rows="3" placeholder="Paste your save code here"></textarea>
+        <button id="save-load-btn" class="btn">Load save</button>
+        <p class="small" id="save-msg"></p>
+      </div>
+    </div>
     <button id="settings-close" class="btn primary">Done</button>
   </div>
 </div>
