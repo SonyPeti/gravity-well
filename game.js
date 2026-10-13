@@ -2782,7 +2782,9 @@ requestAnimationFrame(frame);
 
 // ---------- Offline play & installability ----------
 // Only on the published site: locally it would serve stale cached files while editing
-if ('serviceWorker' in navigator && location.protocol === 'https:') {
+// Not inside the Android app: it ships its own files, and a cache there would only serve stale versions
+const isNativeApp = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+if ('serviceWorker' in navigator && location.protocol === 'https:' && !isNativeApp) {
   const hadController = !!navigator.serviceWorker.controller;
   navigator.serviceWorker.register('sw.js').catch(() => {});
   // A new version was published: reload, but never in the middle of a run

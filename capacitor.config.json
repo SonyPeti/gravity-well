@@ -1,0 +1,9 @@
+{
+  "appId": "io.github.sonypeti.gravitywell",
+  "appName": "Gravity Well",
+  "webDir": "www",
+  "backgroundColor": "#070A18",
+  "android": {
+    "backgroundColor": "#070A18"
+  }
+}
