@@ -13,7 +13,9 @@ A neon space idle-defense game for phones. You are a small planet under attack. 
 - Bosses every 10 waves: the World Eater and the Mothership
 - Observatory: permanent upgrades and 6 unlockable planet skins, each with a perk and a drawback
 - Supernova prestige: endless galaxies, each with a new enemy and twist, and a Constellation tree of new mechanics
-- Home base hub, Bestiary with live enemy stats, daily missions and 25 achievements
+- Daily Challenge with three seeded twists and fair-play rules; elite enemies with traits; three rotating bosses
+- First-run coach hints, save codes for backup, auto graphics quality
+- Home base hub, Bestiary with live enemy stats, daily missions and 28 achievements
 - Combos, boss health bars, wave banners, slow-motion boss kills, phone vibration
 - Offline earnings, sound and music, works offline once installed
 

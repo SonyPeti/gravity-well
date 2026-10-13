@@ -81,7 +81,8 @@
     <button id="menu-planets-btn" class="tile"><img src="assets/skin_ember.png" alt=""><span>Planets</span></button>
     <button id="menu-missions-btn" class="tile"><img src="assets/mut_tidalLock.png" alt=""><span>Missions</span><span class="claim-badge hidden">0</span></button>
     <button id="menu-bestiary-btn" class="tile"><img src="assets/enemy_scout.png" alt=""><span>Bestiary</span></button>
-    <button id="menu-galaxy-btn" class="tile wide galaxy-tile"><img src="assets/mut_blackHole.png" alt=""><span>Galaxy<small id="galaxy-tile-sub">Constellations &amp; new galaxies</small></span></button>
+    <button id="menu-galaxy-btn" class="tile galaxy-tile"><img src="assets/mut_blackHole.png" alt=""><span>Galaxy<small id="galaxy-tile-sub">Constellations &amp; new galaxies</small></span></button>
+    <button id="menu-challenge-btn" class="tile challenge-tile"><img src="assets/mut_goldenTouch.png" alt=""><span>Challenge<small id="challenge-tile-sub">New every day</small></span></button>
   </div>
   <div id="install-banner" class="install-banner hidden">
     <span>📲 <b>Install the app</b> so your progress is never lost</span>
@@ -104,6 +105,19 @@
   </div>
   <div id="nova-flash"></div>
 </div>
+
+<!-- Daily Challenge -->
+<div id="challenge" class="overlay hidden">
+  <div class="modal wide">
+    <h2>🏆 Daily Challenge</h2>
+    <div id="challenge-body"></div>
+    <button id="challenge-start" class="btn gold">Start Challenge</button>
+    <button id="challenge-close" class="btn">Back</button>
+  </div>
+</div>
+
+<!-- Coach hint bubble -->
+<div id="coach" class="hidden"><span class="coach-text"></span></div>
 
 <!-- Settings -->
 <div id="settings" class="overlay hidden">
@@ -187,6 +201,7 @@
       <div><span class="label">Stardust</span><b id="go-stardust" class="stardust">+0</b></div>
     </div>
     <p id="go-best" class="muted"></p>
+    <div id="go-challenge" class="go-challenge hidden"></div>
     <button id="retry-btn" class="btn primary">Play again</button>
     <div class="btn-row">
       <button id="go-obs-btn" class="btn">🔭 Observatory</button>
@@ -272,6 +287,7 @@
 <script src="ads.js"></script>
 <script src="progress.js"></script>
 <script src="galaxy.js"></script>
+<script src="challenge.js"></script>
 <script src="game.js"></script>
 </body>
 </html>

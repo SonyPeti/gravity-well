@@ -5,7 +5,7 @@ const path = require('path');
 const crypto = require('crypto');
 
 const ROOT = path.join(__dirname, '..');
-const FILES = ['index.html', 'style.css', 'audio.js', 'ads.js', 'progress.js', 'galaxy.js', 'game.js', 'manifest.json', 'icon.svg'];
+const FILES = ['index.html', 'style.css', 'audio.js', 'ads.js', 'progress.js', 'galaxy.js', 'challenge.js', 'game.js', 'manifest.json', 'icon.svg', 'assets.json'];
 const ASSET_EXT = /\.(png|jpg|svg|wav|mp3)$/;
 
 function walk(dir) {
@@ -16,6 +16,9 @@ function walk(dir) {
   });
 }
 
+// assets.json lets the game load optional art (new enemies, elite icons) only once it exists
+const pngs = fs.readdirSync(path.join(ROOT, 'assets')).filter(f => f.endsWith('.png')).sort();
+fs.writeFileSync(path.join(ROOT, 'assets.json'), JSON.stringify(pngs));
 const files = [...FILES, ...walk('assets')];
 const hash = crypto.createHash('sha1');
 for (const f of files) hash.update(f).update(fs.readFileSync(path.join(ROOT, f)));

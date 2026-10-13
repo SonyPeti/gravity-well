@@ -53,6 +53,9 @@ const Progress = (() => {
     { id: 'nova1',    name: 'Supernova',         desc: 'Send your planet supernova for the first time', stat: 'supernovas', target: 1, reward: 100, img: 'mut_heavyCore' },
     { id: 'galaxy4',  name: 'Void Walker',       desc: 'Reach Galaxy 4: the Void Rift',      stat: 'galaxy',    target: 4,     reward: 200, img: 'mut_hungry' },
     { id: 'galaxy10', name: 'Deep Space',        desc: 'Reach Galaxy 10',                    stat: 'galaxy',    target: 10,    reward: 500, img: 'mut_blackHole' },
+    { id: 'queen',    name: 'Queen Slayer',      desc: 'Defeat the Nebula Queen',            stat: 'queen',     target: 1,     reward: 60,  img: 'mut_hungry' },
+    { id: 'elite100', name: 'Elite Hunter',      desc: 'Destroy 100 elite enemies',          stat: 'elites',    target: 100,   reward: 80,  img: 'mut_goldenTouch' },
+    { id: 'chal20',   name: 'Challenger',        desc: 'Reach wave 20 in a Daily Challenge', stat: 'challenge20', target: 1,   reward: 100, img: 'mut_tidalLock' },
     { id: 'daily1',   name: 'Daily Routine',     desc: 'Complete all daily missions once',  stat: 'dailySets', target: 1,     reward: 15,  img: 'icon_stardust' },
     { id: 'daily7',   name: 'Dedicated',         desc: 'Complete all daily missions 7 times', stat: 'dailySets', target: 7,   reward: 100, img: 'mut_binaryStar' },
   ];

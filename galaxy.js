@@ -42,8 +42,10 @@ const Galaxy = (() => {
   const NODE = Object.fromEntries(NODES.map(n => [n.id, n]));
 
   // ---------- State ----------
-  const g = () => save.galaxy || 1;
-  const lv = id => (save.cons && save.cons[id]) || 0;
+  // During a Daily Challenge everyone plays on equal terms: home galaxy, no Constellations, no dark power
+  const fair = () => typeof Challenge !== 'undefined' && Challenge.active;
+  const g = () => (fair() ? 1 : save.galaxy || 1);
+  const lv = id => (fair() ? 0 : (save.cons && save.cons[id]) || 0);
   const has = id => lv(id) > 0;
 
   function info(n = g()) {
@@ -88,7 +90,7 @@ const Galaxy = (() => {
 
   // ---------- Multipliers used by game.js ----------
   // Every Dark Matter ever earned gives +2% damage & health (spending it doesn't remove this)
-  const darkPower = () => 1 + DM_POWER * (save.dmEarned || 0);
+  const darkPower = () => (fair() ? 1 : 1 + DM_POWER * (save.dmEarned || 0));
   const dmgMult = () => Math.pow(1.25, lv('dmCore')) * darkPower();
   const hpMult = () => Math.pow(1.25, lv('dmHull')) * darkPower();
   const dustMult = () => 1 + 0.25 * lv('dmDust');

@@ -45,6 +45,17 @@ for (const name of SPRITE_NAMES) {
   img.src = `assets/${name}.${name === 'background' ? 'jpg' : 'png'}`;
 }
 const sprite = name => SPRITES[name] || null;
+// Art that may arrive later (new enemies, boss, elite icons). Loaded only if present, so no 404s.
+const OPTIONAL_SPRITES = ['enemy_sentinel', 'enemy_blinker', 'enemy_hive', 'enemy_swarmer', 'boss_queen',
+  'elite_swift', 'elite_armored', 'elite_regen', 'elite_explosive', 'elite_splitting'];
+fetch('assets.json').then(r => (r.ok ? r.json() : [])).then(list => {
+  for (const name of OPTIONAL_SPRITES) {
+    if (!list.includes(name + '.png')) continue;
+    const img = new Image();
+    img.onload = () => { SPRITES[name] = img; };
+    img.src = `assets/${name}.png`;
+  }
+}).catch(() => {});
 
 // ============================================================
 //  Save data
@@ -129,7 +140,7 @@ const META = [
     value: l => 1 + l, desc: v => `${v} mutation reroll${v === 1 ? '' : 's'} per run`, cost: l => 40 * Math.pow(2.2, l) },
 ];
 const MT = Object.fromEntries(META.map(m => [m.id, m]));
-const metaLv = id => save.meta[id] || 0;
+const metaLv = id => (Challenge.active ? 0 : save.meta[id] || 0); // challenges ignore the Observatory
 const metaVal = id => MT[id].value(metaLv(id));
 
 // ============================================================
@@ -189,7 +200,7 @@ const SKINS = [
 ];
 const SKIN = Object.fromEntries(SKINS.map(s => [s.id, s]));
 const skin = () => SKIN[save.skin] || SKIN.terra;
-const isSkin = id => save.skin === id;
+const isSkin = id => !Challenge.active && save.skin === id;   // ...and planet perks
 
 // ============================================================
 //  Final stats = upgrade × permanent bonus × mutations × skin
@@ -207,9 +218,9 @@ function stat(id) {
     case 'fireRate':    return base(id) * Math.pow(1.3, mc('rapidCore'));
     case 'orbitDamage': return base(id) * metaVal('sOrbit') * (mc('wideOrbit') ? 1.15 : 1) * (mc('hungry') ? 1.5 : 1)
                                * (mc('tidalLock') ? 3 : 1) * (mc('glassCannon') ? 2 : 1) * Galaxy.dmgMult();
-    case 'slots':       return base(id) + (mc('outerHalo') ? 6 : 0) + (isSkin('gasgiant') ? 3 : 0);
-    case 'capture':     return Math.min(0.95, base(id) + metaVal('sCapture') + 0.15 * mc('magnet'));
-    case 'durability':  return base(id) * Math.pow(1.5, mc('denseRock'));
+    case 'slots':       return Math.min(Challenge.has('cramped') ? 6 : 999, base(id) + (mc('outerHalo') ? 6 : 0) + (isSkin('gasgiant') ? 3 : 0));
+    case 'capture':     return Math.min(0.95, base(id) + metaVal('sCapture') + 0.15 * mc('magnet') + (Challenge.has('fragile') ? 0.3 : 0));
+    case 'durability':  return base(id) * Math.pow(1.5, mc('denseRock')) * (Challenge.has('fragile') ? 0.5 : 1);
     case 'spin':        return mc('tidalLock') ? 0 : base(id) * (mc('retrograde') ? 1.3 : 1);
     case 'maxHp':       return base(id) * metaVal('sHull') * Math.pow(1.3, mc('thickAtmo')) * (mc('glassCannon') ? 0.5 : 1)
                                * (isSkin('ember') || isSkin('crystal') ? 0.9 : 1) * Galaxy.hpMult();
@@ -253,6 +264,7 @@ const ENEMY_TYPES = {
   blinker: { hp: 0.8, speed: 26, r: 7,  dmg: 1,   energy: 2.5, capture: 'void', blinks: true },
   hive:    { hp: 4.5, speed: 12, r: 15, dmg: 2,   energy: 5,   capture: 'lava', hive: true },
   swarmer: { hp: 0.25,speed: 48, r: 5,  dmg: 0.4, energy: 0.4, capture: 'rock' },
+  queen:   { hp: 22,  speed: 10, r: 24, dmg: 5,   energy: 30,  capture: 'void', boss: true },
 };
 
 // Bestiary text
@@ -264,15 +276,42 @@ const ENEMY_INFO = {
   wraith:  { name: 'Void Wraith', sprite: 'enemy_wraith',    desc: 'Elite. Half-phases through moons: takes only 50% orbit damage.' },
   worm:    { name: 'World Eater', sprite: 'boss_worm',       desc: 'Boss. A colossal rock serpent that crawls straight for your planet.' },
   mother:  { name: 'Mothership',  sprite: 'boss_mothership', desc: 'Boss. Hangs back and keeps launching scouts at you.' },
-  sentinel:{ name: 'Sentinel',    sprite: 'enemy_scout',     tint: '#4AA8FF', css: 'hue-rotate(200deg) saturate(1.2)', galaxy: 2,
+  sentinel:{ name: 'Sentinel',    sprite: 'enemy_sentinel',  fallback: 'enemy_scout',   tint: '#4AA8FF', css: 'hue-rotate(200deg) saturate(1.2)', galaxy: 2,
              desc: 'Shielded. Takes 65% less damage from core shots: crack it with your moons.' },
-  blinker: { name: 'Blinker',     sprite: 'enemy_comet',     tint: '#FF4FD8', css: 'hue-rotate(110deg) saturate(1.6)', galaxy: 3,
+  blinker: { name: 'Blinker',     sprite: 'enemy_blinker',   fallback: 'enemy_comet',   tint: '#FF4FD8', css: 'hue-rotate(110deg) saturate(1.6)', galaxy: 3,
              desc: 'Teleports toward your planet every few seconds.' },
-  hive:    { name: 'Hive',        sprite: 'enemy_molten',    tint: '#7DFF8A', css: 'hue-rotate(90deg) saturate(1.3)', galaxy: 4,
+  hive:    { name: 'Hive',        sprite: 'enemy_hive',      fallback: 'enemy_molten',  tint: '#7DFF8A', css: 'hue-rotate(90deg) saturate(1.3)', galaxy: 4,
              desc: 'Bursts into a swarm of six tiny Swarmers when destroyed.' },
-  swarmer: { name: 'Swarmer',     sprite: 'enemy_drifter',   tint: '#7DFF8A', css: 'hue-rotate(100deg)', galaxy: 4, hidden: true,
+  swarmer: { name: 'Swarmer',     sprite: 'enemy_swarmer',   fallback: 'enemy_drifter', tint: '#7DFF8A', css: 'hue-rotate(100deg)', galaxy: 4, hidden: true,
              desc: 'Tiny and fast. Comes out of Hives.' },
 };
+ENEMY_INFO.queen = { name: 'Nebula Queen', sprite: 'boss_queen', fallback: 'enemy_wraith', tint: '#FF7AE0', css: 'hue-rotate(40deg) saturate(1.5)',
+  desc: 'Boss. Hangs back and shields every enemy near her: they take 60% less damage. Take her down first!' };
+
+// Elites: from wave 20 some enemies spawn with a random trait. Bigger, golden ring, 3x energy.
+const ELITE_TRAITS = {
+  swift:     { icon: '⚡', name: 'Swift',        desc: '60% faster' },
+  armored:   { icon: '🛡️', name: 'Armored',      desc: '4× health' },
+  regen:     { icon: '♻️', name: 'Regenerating', desc: 'Heals 4% per second' },
+  explosive: { icon: '💥', name: 'Explosive',    desc: 'Explodes on death, cracking nearby moons' },
+  splitting: { icon: '👥', name: 'Splitting',    desc: 'Splits into two when destroyed' },
+};
+const ELITE_LIST = Object.keys(ELITE_TRAITS);
+function eliteChance(w) {
+  if (Challenge.has('elites')) return w >= 5 ? 0.2 : 0;
+  return w >= 20 ? Math.min(0.22, 0.04 + (w - 20) * 0.006) : 0;
+}
+function makeElite(e, trait) {
+  e.elite = trait;
+  e.maxHp *= trait === 'armored' ? 4 : 2;
+  e.hp = e.maxHp;
+  e.r *= 1.25;
+  e.energy *= 3;
+  if (trait === 'swift') e.speed *= 1.6;
+  if (!save.seen) save.seen = {};
+  save.seen.elite = true;
+}
+
 const MOON_NAMES = { rock: 'Rock moon', ice: 'Ice moon', lava: 'Lava moon', drone: 'Captured drone', void: 'Void shard', star: 'Star moon' };
 
 // Pacing knobs, all in one place
@@ -496,7 +535,7 @@ function tryCapture(e) {
   if (!t.boss && Math.random() > stat('capture')) return;
   let type = t.capture;
   if (isSkin('void') && Math.random() < 0.25) type = 'void';
-  if (Math.random() < 0.01 * (mc('goldenTouch') ? 10 : 1)) type = 'gold';
+  if (Math.random() < 0.01 * (mc('goldenTouch') ? 10 : 1) * (Challenge.has('goldRush') ? 20 : 1)) type = 'gold';
   else if (Galaxy.has('starMoon') && Math.random() < 0.08) type = 'star';
   const o = addOrbital(type, e.x, e.y, true);
   if (o) {
@@ -504,11 +543,7 @@ function tryCapture(e) {
     Progress.track('captures');
     Progress.track('cap_' + type);
   }
-  if (o && !save.tips.capture) {
-    save.tips.capture = true;
-    persist();
-    toast('Captured! Destroyed enemies join your orbit 🪐');
-  }
+  if (o) coach('capture', 'Captured! Destroyed enemies can join your orbit and fight for you.', '#orbit-info');
 }
 
 function shatter(o) {
@@ -530,10 +565,17 @@ function spawnOdds() {
     ['wraith', Galaxy.mod('earlyWraith') ? 8 : 15, 0.08],
     ['molten', Galaxy.mod('earlyMolten') ? 4 : 7, 0.20],
     ['scout', 5, 0.33],
-    ['comet', 3, Galaxy.mod('cometX2') ? 0.70 : 0.55],
+    ['comet', 3, Galaxy.mod('cometX2') || Challenge.has('comets') ? 0.70 : 0.55],
   ];
 }
-const BOSS_WAVE = w => (w % 10 === 0 ? (w % 20 === 0 ? 'mother' : 'worm') : null);
+// Bosses rotate: World Eater (10, 40, 70…), Mothership (20, 50, 80…), Nebula Queen (30, 60, 90…)
+const BOSS_WAVE = w => {
+  const step = Challenge.has('bossRush') ? 5 : 10;
+  if (w % step) return null;
+  const i = (w / step) % 3;
+  return i === 1 ? 'worm' : i === 2 ? 'mother' : 'queen';
+};
+const QUEEN_AURA = 90;
 
 function pickType(w, isFirst) {
   if (isFirst && BOSS_WAVE(w)) return BOSS_WAVE(w);
@@ -561,6 +603,7 @@ function spawnChances(w) {
 
 function spawnEnemy(typeId, x, y, hpMult = 1) {
   const t = ENEMY_TYPES[typeId];
+  const spawnedNaturally = x === undefined;
   if (x === undefined) {
     const a = Math.random() * TAU;
     const d = Math.hypot(W, H) / 2 / SCALE + PACE.spawnMargin;
@@ -576,9 +619,15 @@ function spawnEnemy(typeId, x, y, hpMult = 1) {
     atk: 0.3, shoot: rand(1, 2), flash: 0, rot: Math.random() * TAU, spinV: rand(-1.5, 1.5),
     slow: 0, burn: 0, burnDps: 0, kb: 0, dead: false,
     verts: Array.from({ length: 9 }, () => rand(0.75, 1.1)),
-    stopAt: typeId === 'scout' ? rand(105, 125) : typeId === 'mother' ? 105 : PLANET_R + t.r,
+    stopAt: typeId === 'scout' ? rand(105, 125) : typeId === 'mother' ? 105 : typeId === 'queen' ? 128 : PLANET_R + t.r,
     hist: [], segs: [],
   };
+  if (Challenge.has('swift')) e.speed *= 1.3;
+  // Regular spawns (no position given) can roll an elite trait
+  if (spawnedNaturally && !t.boss && typeId !== 'swarmer' && Math.random() < eliteChance(run.wave)) {
+    makeElite(e, ELITE_LIST[Math.floor(Math.random() * ELITE_LIST.length)]);
+  }
+  if (typeId === 'queen') run.queen = e;
   run.enemies.push(e);
   return e;
 }
@@ -592,6 +641,8 @@ function hitTest(e, x, y, r) {
 // ---------- Combat ----------
 function damageEnemy(e, amount, crit, quiet) {
   if (e.dead) return;
+  const q = run.queen;
+  if (q && q !== e && !q.dead && Math.hypot(e.x - q.x, e.y - q.y) < QUEEN_AURA) amount *= 0.4;
   e.hp -= amount;
   if (!quiet) e.flash = 0.07;
   if (crit && run.texts.length < 30) {
@@ -605,7 +656,22 @@ function killEnemy(e) {
   run.kills++;
   const t = ENEMY_TYPES[e.type];
   Progress.track('kills');
-  if (e.boss) { Progress.track('bosses'); Progress.track(e.type === 'worm' ? 'worm' : 'mother'); }
+  if (e.boss) { Progress.track('bosses'); Progress.track(e.type); }
+  if (e === run.queen) run.queen = null;
+  if (e.elite) {
+    Progress.track('elites');
+    if (e.elite === 'explosive') {
+      run.waves.push({ x: e.x, y: e.y, r: 4, max: 40, t: 0.35, color: '#FF8A2A' });
+      Sound.play('kill_big', { x: e.x, vol: 0.7 });
+      for (const o of run.orbitals) {
+        if (!o.dead && Math.hypot(o.x - e.x, o.y - e.y) < 40) { o.hp -= 2; if (o.hp <= 0) shatter(o); }
+      }
+      if (Math.hypot(e.x, e.y) < 60) hitPlanet(e.dmg * 2, false);
+    }
+    if (e.elite === 'splitting') {
+      for (let i = 0; i < 2; i++) spawnEnemy(e.type, e.x + rand(-10, 10), e.y + rand(-10, 10), 0.4);
+    }
+  }
   comboHit();
   const full = run.orbitals.length >= stat('slots');
   const reward = (2 + 0.3 * run.wave) * e.energy * stat('energyKill') * (mc('overflow') && full ? 2 : 1) * comboMult();
@@ -691,7 +757,7 @@ function fireFrom(x, y, range, dmgMult) {
 }
 
 function usePulse() {
-  if (!run || run.over || paused || run.pulseCd > 0) return;
+  if (!run || run.over || paused || run.pulseCd > 0 || Challenge.has('noPulse')) return;
   run.pulseCd = PULSE_CD * (mc('chainPulse') ? 0.5 : 1);
   Progress.track('pulses');
   vibrate(35);
@@ -781,6 +847,56 @@ function comboTick(dt) {
   if (run.comboT <= 0) { run.combo = 0; $('combo').classList.add('hidden'); }
 }
 
+const coachQueue = [];
+let coachTimer = null, coachShowing = false, coachDone = null;
+// Switching screens closes the current hint and drops queued ones (they'll come back when relevant)
+function clearCoach() {
+  coachQueue.length = 0;
+  if (coachDone) coachDone(true);
+}
+function coach(id, text, target) {
+  if (!save.tips) save.tips = {};
+  if (save.tips['h_' + id] || coachQueue.some(q => q.id === id)) return;
+  coachQueue.push({ id, text, target });
+  if (!coachShowing) nextCoach();
+}
+function nextCoach() {
+  const q = coachQueue.shift();
+  if (!q) { coachShowing = false; return; }
+  const el = typeof q.target === 'string' ? document.querySelector(q.target) : q.target;
+  if (!el || !el.getClientRects().length) { nextCoach(); return; } // target not visible: skip
+  coachShowing = true;
+  save.tips['h_' + q.id] = true;
+  persist();
+  const b = $('coach');
+  b.querySelector('.coach-text').textContent = q.text;
+  const r = el.getBoundingClientRect();
+  b.classList.remove('hidden', 'above', 'below');
+  const below = r.top < innerHeight * 0.45;
+  b.classList.add(below ? 'below' : 'above');
+  const bw = Math.min(280, innerWidth - 24);
+  b.style.width = bw + 'px';
+  const left = Math.max(12, Math.min(innerWidth - bw - 12, r.left + r.width / 2 - bw / 2));
+  b.style.left = left + 'px';
+  b.style.setProperty('--arrow', (r.left + r.width / 2 - left) + 'px');
+  b.style.top = below ? (r.bottom + 12) + 'px' : '';
+  b.style.bottom = below ? '' : (innerHeight - r.top + 12) + 'px';
+  el.classList.add('coach-target');
+  clearTimeout(coachTimer);
+  const done = (silent) => {
+    b.classList.add('hidden');
+    el.classList.remove('coach-target');
+    document.removeEventListener('pointerdown', done, true);
+    clearTimeout(coachTimer);
+    coachDone = null;
+    coachShowing = false;
+    if (silent !== true) setTimeout(nextCoach, 400);
+  };
+  coachDone = done;
+  coachTimer = setTimeout(done, 6500);
+  setTimeout(() => document.addEventListener('pointerdown', done, true), 300);
+}
+
 let toastTimer = 0;
 function toast(msg) {
   const el = $('toast');
@@ -806,8 +922,8 @@ function endWave() {
   const w = run.wave;
   const rw = waveClearReward(w);
   run.energy += rw.total;
-  const sd = stardustForWave(w);
-  addStardust(sd);
+  const sd = Challenge.active ? 0 : stardustForWave(w);
+  if (sd) addStardust(sd);
   // Green energy bursts in from around the planet and gets pulled into it
   for (let i = 0; i < 4; i++) {
     const a = Math.random() * TAU;
@@ -819,20 +935,23 @@ function endWave() {
   run.clearSub = parts.join(' · ');
   // Boss waves have no "WAVE N" banner, so show the reward as a toast instead
   if (BOSS_WAVE(w + 1)) toast(`Wave ${w} clear · ${parts.slice(0, 2).join(' ')}`);
-  if (w > save.bestWave) save.bestWave = w;
-  if (w > (save.galaxyBest || 0)) save.galaxyBest = w;
+  if (!Challenge.active) {
+    if (w > save.bestWave) save.bestWave = w;
+    if (w > (save.galaxyBest || 0)) save.galaxyBest = w;
+  }
   persist();
   run.flawless = run.tookDamage ? 0 : run.flawless + 1;
   run.tookDamage = false;
   Progress.max('flawless', run.flawless);
   run.wave++;
-  Progress.max('wave', run.wave);
+  if (!Challenge.active) Progress.max('wave', run.wave);
   if (Galaxy.has('shield')) run.shield = stat('maxHp') * 0.15;
   if (!BOSS_WAVE(run.wave)) banner('WAVE ' + run.wave, run.clearSub);
+  if (run.wave === 4) coach('orbitTab', 'Orbit upgrades make your moons stronger and let you hold more of them.', '[data-tab="orbit"]');
   run.waveTime = 0;
   run.spawned = 0;
   run.spawnAcc = PACE.spawnWindow / waveCount(run.wave); // next wave starts immediately
-  if (w % DRAFT_EVERY === 0) openDraft();
+  if (w % (Challenge.has('frenzy') ? 1 : DRAFT_EVERY) === 0) openDraft();
   else Sound.play('wave_clear');
 }
 
@@ -909,21 +1028,30 @@ function gameOver() {
   paused = true;
   const reached = run.wave;
   const prevBest = save.bestWave;
-  if (reached > save.bestWave) save.bestWave = reached;
+  const ch = Challenge.active ? Challenge.finish(reached) : null;
+  if (!ch && reached > save.bestWave) save.bestWave = reached;
   persist();
+  lastMode = ch ? 'challenge' : 'normal';
+  $('go-challenge').classList.toggle('hidden', !ch);
+  if (ch) {
+    const g = ch.gained;
+    $('go-challenge').innerHTML = `<b>🏆 Daily Challenge</b> · cleared ${ch.reached} wave${ch.reached === 1 ? '' : 's'}${ch.isBest ? ' · new best today!' : ''}
+      ${g.tiers.length ? `<div class="ch-gain">Rewards: +${ICON_S}${fmt(g.dust)}${g.dm ? ` · +<span class="dm">◆</span>${g.dm}` : ''}</div>` : ''}`;
+  }
   burst(0, 0, '#3FF2E0', 60, false);
   for (const o of run.orbitals) burst(o.x, o.y, ORBITALS[o.type].trail, 4, false);
   run.orbitals = [];
   $('go-wave').textContent = reached;
   $('go-kills').textContent = fmt(run.kills);
   $('go-stardust').innerHTML = '+' + ICON_S + fmt(run.stardust);
-  $('go-best').textContent = reached > prevBest ? '🏆 New best wave!' : `Best wave: ${save.bestWave}`;
+  $('go-best').textContent = ch ? `Best today: wave ${Challenge.state().best}` : reached > prevBest ? '🏆 New best wave!' : `Best wave: ${save.bestWave}`;
   Sound.play('boom');
   Sound.play('kill_big');
   Sound.muffle(true, 1.5);
   setTimeout(() => {
     show('gameover');
-    if (reached > prevBest) Sound.play('fanfare');
+    if (!ch) coach('observatory', 'Spend Stardust in the Observatory to become permanently stronger.', '#go-obs-btn');
+    if ((!ch && reached > prevBest) || (ch && ch.gained.tiers.length)) Sound.play('fanfare');
   }, 700);
 }
 
@@ -964,6 +1092,8 @@ function update(dt) {
     r.hp = Math.min(stat('maxHp'), r.hp + stat('regen') * dt);
     r.pulseCd = Math.max(0, r.pulseCd - dt);
     if (r.echoAt && r.time >= r.echoAt) { r.echoAt = 0; pulseBlast(); }
+    if (r.wave <= 4 && r.pulseCd <= 0 && !save.tips.h_pulse && !Challenge.has('noPulse')
+        && r.enemies.some(e => Math.hypot(e.x, e.y) < 70)) coach('pulse', 'Tap your planet (or PULSE) to blast enemies back!', '#pulse-btn');
     // Constellation: Auto-Pulse
     if (Galaxy.has('autoPulse') && save.settings.autoPulse !== false && r.pulseCd <= 0
         && r.enemies.some(e => Math.hypot(e.x, e.y) < 55)) usePulse();
@@ -1069,6 +1199,7 @@ function update(dt) {
   for (const e of r.enemies) {
     if (e.dead) continue;
     e.flash = Math.max(0, e.flash - dt);
+    if (e.elite === 'regen') e.hp = Math.min(e.maxHp, e.hp + e.maxHp * 0.04 * dt);
     e.rot += dt * e.spinV;
     e.slow = Math.max(0, e.slow - dt);
     if (e.burn > 0) {
@@ -1230,12 +1361,12 @@ function binaryStarPos() {
 // ============================================================
 const ENEMY_COLORS = {
   drifter: '#FF5A4E', comet: '#8FD8FF', scout: '#FF3D7F', molten: '#FF8A2A', wraith: '#9B5CFF', worm: '#FF3B3B', mother: '#FF3D7F',
-  sentinel: '#4AA8FF', blinker: '#FF4FD8', hive: '#7DFF8A', swarmer: '#7DFF8A',
+  sentinel: '#4AA8FF', blinker: '#FF4FD8', hive: '#7DFF8A', swarmer: '#7DFF8A', queen: '#FF7AE0',
 };
 // [size multiplier, rotation mode]: 'spin' = tumbles, 'face' = points at the planet, 'up' = stays upright
 const SPRITE_DRAW = {
   drifter: [2.9, 'spin'], molten: [2.9, 'spin'], comet: [3.6, 'face'], scout: [3, 'face'], wraith: [3.2, 'up'],
-  worm: [3.6, 'up'], mother: [2.9, 'up'], sentinel: [3, 'face'], blinker: [3.6, 'face'], hive: [2.9, 'spin'], swarmer: [3, 'spin'],
+  worm: [3.6, 'up'], mother: [2.9, 'up'], sentinel: [3, 'face'], blinker: [3.6, 'face'], hive: [2.9, 'spin'], swarmer: [3, 'spin'], queen: [3.2, 'up'],
 };
 function enemyColor(type) {
   return ENEMY_COLORS[type];
@@ -1273,6 +1404,13 @@ function tintedSprite(name, color) {
 
 // While drawing the world, sprites set their transform directly (much cheaper than save/restore)
 let worldK = 0, worldX = 0, worldY = 0;
+function enemySprite(inf) {
+  const own = sprite(inf.sprite);
+  if (own && !(inf.tint && !inf.fallback)) return own;
+  if (inf.fallback) return tintedSprite(inf.fallback, inf.tint);
+  return inf.tint ? tintedSprite(inf.sprite, inf.tint) : own;
+}
+
 function drawSprite(img, x, y, size, rot) {
   if (worldK && ctx === mainCtx) {
     const cs = Math.cos(rot || 0) * worldK, sn = Math.sin(rot || 0) * worldK;
@@ -1409,7 +1547,7 @@ function drawEnemy(e, t, noGlow) {
     ctx.globalCompositeOperation = 'source-over';
   }
   const inf = ENEMY_INFO[e.type];
-  const spr = inf.tint ? tintedSprite(inf.sprite, inf.tint) : sprite(inf.sprite);
+  const spr = enemySprite(inf);
   const face = Math.atan2(-e.y, -e.x);
 
   if (spr) {
@@ -1503,6 +1641,25 @@ function drawEnemy(e, t, noGlow) {
     ctx.fillStyle = 'rgba(143,216,255,0.3)';
     ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, TAU); ctx.fill();
   }
+  if (e.elite) {
+    ctx.strokeStyle = 'rgba(255,211,74,0.9)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(e.x, e.y, e.r + 3, 0, TAU); ctx.stroke();
+    const icon = sprite('elite_' + e.elite);
+    if (icon) ctx.drawImage(icon, e.x - 6, e.y - e.r - 20, 12, 12);
+    else {
+      ctx.font = '10px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(ELITE_TRAITS[e.elite].icon, e.x, e.y - e.r - 14);
+    }
+  }
+  const q = run && run.queen;
+  if (q && q !== e && !q.dead && Math.hypot(e.x - q.x, e.y - q.y) < QUEEN_AURA) {
+    ctx.strokeStyle = 'rgba(255,122,224,0.6)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(e.x, e.y, e.r + 2, 0, TAU); ctx.stroke();
+  }
   if (e.hp < e.maxHp) {
     const w = Math.max(14, e.r * 2);
     ctx.fillStyle = 'rgba(0,0,0,0.6)';
@@ -1579,6 +1736,16 @@ function render(now) {
   ctx.fillStyle = '#FFD0E0';
   for (const b of r.eBullets) { ctx.beginPath(); ctx.arc(b.x, b.y, 2, 0, TAU); ctx.fill(); }
 
+  // Nebula Queen's shield aura
+  if (r.queen && !r.queen.dead) {
+    const q = r.queen;
+    ctx.fillStyle = 'rgba(255,122,224,0.06)';
+    ctx.strokeStyle = `rgba(255,122,224,${0.25 + 0.15 * Math.sin(tt * 3)})`;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 6]);
+    ctx.beginPath(); ctx.arc(q.x, q.y, QUEEN_AURA, 0, TAU); ctx.fill(); ctx.stroke();
+    ctx.setLineDash([]);
+  }
   // All glows in one additive pass (switching blend mode per object is slow on phones)
   ctx.globalCompositeOperation = 'lighter';
   for (const e of r.enemies) {
@@ -1818,6 +1985,7 @@ function refreshUpgradeCards() {
       setHTML(c.cost, ICON_E + fmt(plan.cost) + (plan.n > 1 ? `  (x${plan.n})` : ''));
     }
     const afford = !plan.maxed && plan.cost <= run.energy;
+    if (afford && !save.tips.h_buy && !paused) coach('buy', 'You have Energy! Tap an upgrade to get stronger.', c.el);
     c.el.classList.toggle('afford', afford);
     c.el.classList.toggle('cant', !afford && !plan.maxed);
     c.el.classList.toggle('maxed', plan.maxed);
@@ -2073,8 +2241,8 @@ function renderBestiary() {
   const w = Number($('bst-wave').value);
   $('bst-wave-val').textContent = w;
   const odds = spawnChances(w);
-  const order = ['drifter', 'comet', 'scout', 'molten', 'wraith', 'sentinel', 'blinker', 'hive', 'worm', 'mother'];
-  const firstWave = { drifter: 1, worm: 10, mother: 20, sentinel: 6, blinker: 8, hive: 10 };
+  const order = ['drifter', 'comet', 'scout', 'molten', 'wraith', 'sentinel', 'blinker', 'hive', 'worm', 'mother', 'queen'];
+  const firstWave = { drifter: 1, worm: 10, mother: 20, queen: 30, sentinel: 6, blinker: 8, hive: 10 };
   for (const [type, from] of spawnOdds()) firstWave[type] = from;
   let html = '';
   for (const type of order) {
@@ -2085,14 +2253,14 @@ function renderBestiary() {
         ? `Discovered in Galaxy ${info.galaxy}` : `Appears from wave ${firstWave[type]}`;
       html += `
         <div class="beast locked">
-          <img src="assets/${info.sprite}.png" alt="">
+          <img src="assets/${beastSrc(info)}.png" alt="">
           <div class="bname">???<span class="bchance off">${where}</span></div>
           <div class="bdesc">Not encountered yet.</div>
         </div>`;
       continue;
     }
     let chance;
-    if (t.boss) chance = `<span class="bchance off">${type === 'worm' ? 'Waves 10, 30, 50…' : 'Waves 20, 40, 60…'}</span>`;
+    if (t.boss) chance = `<span class="bchance off">${{ worm: 'Waves 10, 40, 70…', mother: 'Waves 20, 50, 80…', queen: 'Waves 30, 60, 90…' }[type]}</span>`;
     else chance = odds[type] > 0 ? `<span class="bchance">${Math.round(odds[type] * 100)}%</span>` : `<span class="bchance off">from wave ${firstWave[type]}</span>`;
     const hp = enemyHp(w) * t.hp, dmg = enemyDmg(w) * t.dmg;
     const dmgLabel = t.ranged ? (type === 'mother' ? 'Spawns' : 'Shot') : 'Dmg/s';
@@ -2100,7 +2268,7 @@ function renderBestiary() {
     const moon = t.capture;
     html += `
       <div class="beast ${t.boss ? 'boss' : ''}">
-        <img src="assets/${info.sprite}.png" alt="" style="${info.css ? 'filter:' + info.css : ''}">
+        <img src="assets/${beastSrc(info)}.png" alt="" style="${info.css && !sprite(info.sprite) ? 'filter:' + info.css : ''}">
         <div class="bname">${info.name}${chance}</div>
         <div class="bdesc">${info.desc}</div>
         <div class="bstats">
@@ -2112,8 +2280,16 @@ function renderBestiary() {
         <div class="bcap">Captured as <img src="assets/orb_${moon}.png" alt=""> ${MOON_NAMES[moon]}</div>
       </div>`;
   }
+  // Elite traits
+  html += save.seen && save.seen.elite
+    ? `<div class="beast elites"><div class="bname">👑 Elites<span class="bchance off">from wave 20</span></div>
+        <div class="bdesc">Bigger, ringed in gold, and worth 3× energy. Each has one trait:</div>
+        <div class="etraits">${ELITE_LIST.map(k => `<div><b>${ELITE_TRAITS[k].icon} ${ELITE_TRAITS[k].name}</b><span>${ELITE_TRAITS[k].desc}</span></div>`).join('')}</div></div>`
+    : `<div class="beast locked elites"><div class="bname">👑 ???<span class="bchance off">Appears from wave 20</span></div><div class="bdesc">Something stronger is coming.</div></div>`;
   $('bst-list').innerHTML = html;
 }
+// Use an enemy's own art when it exists, otherwise its recolored stand-in
+const beastSrc = info => (sprite(info.sprite) || !info.fallback ? info.sprite : info.fallback);
 $('bst-wave').addEventListener('input', renderBestiary);
 
 // ============================================================
@@ -2121,6 +2297,11 @@ $('bst-wave').addEventListener('input', renderBestiary);
 // ============================================================
 function refreshLobby() {
   refreshInstallBanner();
+  if ((save.galaxyBest || 0) >= Galaxy.PRESTIGE_MIN) coach('nova', 'Supernova unlocked! Travel to a new galaxy for big permanent power.', '#menu-galaxy-btn');
+  else if (save.bestWave >= 8) coach('challenge', 'New every day: a Daily Challenge with special rules and rewards!', '#menu-challenge-btn');
+  const cst = Challenge.state();
+  $('challenge-tile-sub').textContent = cst.tiers.every(Boolean) ? 'All rewards claimed ✓'
+    : cst.best ? `Best today: wave ${cst.best}` : Challenge.today().mods.map(id => Challenge.MODS.find(m => m.id === id).icon).join(' ') + ' · new today';
   const gi = Galaxy.info();
   $('lobby-galaxy').textContent = `Galaxy ${gi.n} · ${gi.name}`;
   $('lobby-galaxy').style.color = gi.tint || 'var(--friend)';
@@ -2138,8 +2319,9 @@ function refreshLobby() {
   $('lobby-daily').classList.toggle('ready', ready);
 }
 
-const OVERLAYS = ['menu', 'pause', 'gameover', 'observatory', 'draft', 'howto', 'welcome', 'missions', 'bestiary', 'settings', 'galaxy'];
+const OVERLAYS = ['menu', 'pause', 'gameover', 'observatory', 'draft', 'howto', 'welcome', 'missions', 'bestiary', 'settings', 'galaxy', 'challenge'];
 function show(id) {
+  clearCoach();
   for (const o of OVERLAYS) $(o).classList.toggle('hidden', o !== id);
   if (id === 'menu') {
     $('menu-best').textContent = save.bestWave;
@@ -2148,23 +2330,43 @@ function show(id) {
   if (id === 'observatory') setObsTab(obsTab);
   if (id === 'missions') Progress.render();
   if (id === 'galaxy') Galaxy.render();
+  if (id === 'challenge') Challenge.render();
   if (id === 'menu') refreshLobby();
   if (id === 'bestiary') { const s = $('bst-wave'); s.max = Math.max(30, save.bestWave + 10); if (!s.dataset.touched) s.value = Math.max(1, save.bestWave); renderBestiary(); }
   if (id === 'menu' || id === 'gameover') Progress.refreshBadge();
   if (id === 'pause') { renderMutList($('pause-muts')); Sound.muffle(true); }
-  if (id === 'menu' || id === 'observatory' || id === 'missions' || id === 'bestiary' || id === 'settings' || id === 'galaxy' || (id === 'howto' && !(run && !run.over))) {
+  if (id === 'menu' || id === 'observatory' || id === 'missions' || id === 'bestiary' || id === 'settings' || id === 'galaxy' || id === 'challenge' || (id === 'howto' && !(run && !run.over))) {
     Sound.music('menu');
     Sound.muffle(false, 0.8);
   }
 }
 function hideAll() { for (const o of OVERLAYS) $(o).classList.add('hidden'); }
 
+let lastMode = 'normal';
 function startRun() {
   if (!save.tips.howto) { show('howto'); return; }
+  Challenge.active = false;
+  buildBackground();
+  $('pulse-btn').classList.remove('hidden');
   newRun();
   hideAll();
   Sound.music('game');
   Sound.muffle(false, 0.6);
+}
+function startChallenge() {
+  Challenge.start();
+  buildBackground(); // challenges always use the home galaxy
+  newRun();
+  hideAll();
+  Sound.music('game');
+  Sound.muffle(false, 0.6);
+  const mods = Challenge.today().mods.map(id => Challenge.MODS.find(m => m.id === id));
+  if (Challenge.has('glass')) run.mut.glassCannon = 1;
+  $('pulse-btn').classList.toggle('hidden', Challenge.has('noPulse'));
+  if (Challenge.has('rich')) run.energy += 300;
+  run.hp = stat('maxHp');
+  refreshMutStrip();
+  banner('DAILY CHALLENGE', mods.map(m => m.icon + ' ' + m.name).join(' · '), false);
 }
 $('howto-ok').onclick = () => {
   const first = !save.tips.howto;
@@ -2177,7 +2379,7 @@ $('menu-planets-btn').onclick = () => { obsTab = 'planets'; show('observatory');
 document.querySelectorAll('.seg-btn').forEach(b => { b.onclick = () => setObsTab(b.dataset.obs); });
 
 $('play-btn').onclick = startRun;
-$('retry-btn').onclick = startRun;
+$('retry-btn').onclick = () => (lastMode === 'challenge' ? startChallenge() : startRun());
 $('menu-obs-btn').onclick = () => { obsTab = 'upgrades'; show('observatory'); };
 $('go-obs-btn').onclick = () => { obsTab = 'upgrades'; show('observatory'); };
 $('obs-close').onclick = () => show('menu');
@@ -2379,6 +2581,9 @@ $('install-x').onclick = () => {
   refreshInstallBanner();
 };
 $('menu-galaxy-btn').onclick = () => show('galaxy');
+$('menu-challenge-btn').onclick = () => show('challenge');
+$('challenge-close').onclick = () => show('menu');
+$('challenge-start').onclick = () => { if (!save.tips.howto) { show('howto'); return; } startChallenge(); };
 $('galaxy-close').onclick = () => { buildBackground(); show('menu'); };
 $('auto-buy').onclick = () => {
   save.settings.autoBuy = !save.settings.autoBuy;
