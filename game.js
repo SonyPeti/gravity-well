@@ -333,7 +333,7 @@ const PACE = {
 const waveCount = w => Math.min(100, Math.round((PACE.countBase + PACE.countPer * w) * (BOSS_WAVE(w) ? PACE.bossEscort : 1)));
 // Difficulty knobs, all in one place
 const BALANCE = {
-  hpBase: 5, hpGrowth: 1.18, hpCurve: 1.0012,   // enemy health per wave (curve gets steeper late)
+  hpBase: 5, hpGrowth: 1.20, hpCurve: 1.0012,   // enemy health per wave (curve gets steeper late)
   dmgBase: 3, dmgGrowth: 1.12, dmgCurve: 1.001,
   clearBase: 4, clearPer: 1.5,   // energy for clearing a wave (before fast/flawless bonuses)
   pulseDmg: 1,   // Gravity Pulse damage (× core damage) to every enemy in range
