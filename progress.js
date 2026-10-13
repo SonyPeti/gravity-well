@@ -47,6 +47,7 @@ const Progress = (() => {
     { id: 'mutant',   name: 'Mutant',            desc: 'Hold 8 mutations in one run',       stat: 'runMutations', target: 8,  reward: 40,  img: 'mut_glassCannon' },
     { id: 'orbit20',  name: 'Full Orbit',        desc: 'Have 20 moons orbiting at once',    stat: 'maxOrbit',  target: 20,    reward: 40,  img: 'upg_slots' },
     { id: 'pulse100', name: 'Pulse Master',      desc: 'Use Gravity Pulse 100 times',       stat: 'pulses',    target: 100,   reward: 30,  img: 'mut_chainPulse' },
+    { id: 'combo50',  name: 'Chain Reaction',    desc: 'Reach a 50-kill combo',             stat: 'combo',     target: 50,    reward: 40,  img: 'mut_shrapnel' },
     { id: 'flawless', name: 'Untouchable',       desc: 'Clear 5 waves in a row without taking damage', stat: 'flawless', target: 5, reward: 50, img: 'upg_durability' },
     { id: 'skins',    name: 'Planet Collector',  desc: 'Own all 6 planets',                 stat: 'skins',     target: 6,     reward: 150, img: 'skin_crystal' },
     { id: 'daily1',   name: 'Daily Routine',     desc: 'Complete all daily missions once',  stat: 'dailySets', target: 1,     reward: 15,  img: 'icon_stardust' },

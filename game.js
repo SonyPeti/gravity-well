@@ -245,6 +245,18 @@ const ENEMY_TYPES = {
   mother:  { hp: 18,  speed: 12, r: 26, dmg: 4,   energy: 25,  capture: 'drone', boss: true, ranged: true },
 };
 
+// Bestiary text
+const ENEMY_INFO = {
+  drifter: { name: 'Drifter',     sprite: 'enemy_drifter',   desc: 'A slow, stubborn chunk of rock. The bulk of every swarm.' },
+  comet:   { name: 'Comet',       sprite: 'enemy_comet',     desc: 'Fast and fragile. Hits before you notice it.' },
+  scout:   { name: 'Alien Scout', sprite: 'enemy_scout',     desc: 'Keeps its distance and shoots. Your moons can block its shots.' },
+  molten:  { name: 'Molten Rock', sprite: 'enemy_molten',    desc: 'Tanky lava boulder that splits into two drifters when destroyed.' },
+  wraith:  { name: 'Void Wraith', sprite: 'enemy_wraith',    desc: 'Elite. Half-phases through moons: takes only 50% orbit damage.' },
+  worm:    { name: 'World Eater', sprite: 'boss_worm',       desc: 'Boss. A colossal rock serpent that crawls straight for your planet.' },
+  mother:  { name: 'Mothership',  sprite: 'boss_mothership', desc: 'Boss. Hangs back and keeps launching scouts at you.' },
+};
+const MOON_NAMES = { rock: 'Rock moon', ice: 'Ice moon', lava: 'Lava moon', drone: 'Captured drone', void: 'Void shard' };
+
 // Pacing knobs, all in one place
 const PACE = {
   waveLen: 17,       // max seconds per wave
@@ -389,6 +401,11 @@ function newRun() {
   paused = false;
   refreshUpgradeCards();
   refreshMutStrip();
+  run.combo = 0;
+  $('combo').classList.add('hidden');
+  $('boss-bar').classList.add('hidden');
+  timeScale = 1; slowmoLeft = 0;
+  banner('WAVE 1', 'DEFEND YOUR PLANET');
 }
 
 // ---------- Orbitals ----------
@@ -446,14 +463,34 @@ function shatter(o) {
 }
 
 // ---------- Spawning ----------
+// [type, first wave, cumulative roll threshold]; checked top to bottom, the rest are drifters.
+// Shared by spawning and the Bestiary so the shown odds are always the real ones.
+const SPAWN_ODDS = [
+  ['wraith', 15, 0.08],
+  ['molten', 7, 0.20],
+  ['scout', 5, 0.33],
+  ['comet', 3, 0.55],
+];
+const BOSS_WAVE = w => (w % 10 === 0 ? (w % 20 === 0 ? 'mother' : 'worm') : null);
+
 function pickType(w, isFirst) {
-  if (isFirst && w % 10 === 0) return w % 20 === 0 ? 'mother' : 'worm';
+  if (isFirst && BOSS_WAVE(w)) return BOSS_WAVE(w);
   const r = Math.random();
-  if (w >= 15 && r < 0.08) return 'wraith';
-  if (w >= 7 && r < 0.20) return 'molten';
-  if (w >= 5 && r < 0.33) return 'scout';
-  if (w >= 3 && r < 0.55) return 'comet';
+  for (const [type, from, cum] of SPAWN_ODDS) if (w >= from && r < cum) return type;
   return 'drifter';
+}
+
+// Chance of each regular enemy type at a given wave (0..1)
+function spawnChances(w) {
+  const res = {};
+  let prev = 0;
+  for (const [type, from, cum] of SPAWN_ODDS) {
+    if (w < from) { res[type] = 0; continue; }
+    res[type] = cum - prev;
+    prev = cum;
+  }
+  res.drifter = 1 - prev;
+  return res;
 }
 
 function spawnEnemy(typeId, x, y, hpMult = 1) {
@@ -464,6 +501,8 @@ function spawnEnemy(typeId, x, y, hpMult = 1) {
     x = Math.cos(a) * d; y = Math.sin(a) * d;
   }
   const hp = enemyHp(run.wave) * t.hp * hpMult;
+  if (!save.seen) save.seen = {};
+  save.seen[typeId] = true; // unlocks its Bestiary entry
   const e = {
     type: typeId, x, y, r: t.r, speed: t.speed * PACE.speed * rand(0.9, 1.1),
     hp, maxHp: hp, dmg: enemyDmg(run.wave) * t.dmg, energy: t.energy,
@@ -501,11 +540,19 @@ function killEnemy(e) {
   const t = ENEMY_TYPES[e.type];
   Progress.track('kills');
   if (e.boss) { Progress.track('bosses'); Progress.track(e.type === 'worm' ? 'worm' : 'mother'); }
+  comboHit();
   const full = run.orbitals.length >= stat('slots');
-  const reward = (2 + 0.3 * run.wave) * e.energy * stat('energyKill') * (mc('overflow') && full ? 2 : 1);
+  const reward = (2 + 0.3 * run.wave) * e.energy * stat('energyKill') * (mc('overflow') && full ? 2 : 1) * comboMult();
   run.energy += reward;
   burst(e.x, e.y, enemyColor(e.type), e.boss ? 40 : 10, true);
-  if (e.boss) { Sound.play('boom'); Sound.play('kill_big', { x: e.x }); }
+  if (e.boss) {
+    Sound.play('boom'); Sound.play('kill_big', { x: e.x });
+    slowmo(0.9);
+    screenFlash('#ffffff');
+    vibrate([60, 40, 140]);
+    run.shake = 6;
+    banner('DEFEATED', ENEMY_INFO[e.type].name, false);
+  }
   else if (t.splits) Sound.play('kill_big', { x: e.x, vol: 0.6 });
   else Sound.play('kill', { x: e.x });
   if (mc('siphon')) run.hp = Math.min(stat('maxHp'), run.hp + stat('maxHp') * 0.005 * mc('siphon'));
@@ -531,6 +578,7 @@ function killEnemy(e) {
 function hitPlanet(dmg, big) {
   run.tookDamage = true;
   Sound.play('planet_hit', { vol: big ? 1.4 : 1 });
+  if (big) vibrate(45); else if (!run.lastBuzz || run.time - run.lastBuzz > 0.4) { run.lastBuzz = run.time; vibrate(12); }
   run.hp -= dmg;
   run.hurt = 0.15;
   run.wobble = Math.min(0.15, run.wobble + 0.06);
@@ -564,6 +612,7 @@ function usePulse() {
   run.pulseCd = PULSE_CD * (mc('chainPulse') ? 0.5 : 1);
   run.pulseT = 0.9;
   Progress.track('pulses');
+  vibrate(35);
   const dmg = stat('coreDamage') * 2;
   for (const e of run.enemies) {
     const d = Math.hypot(e.x, e.y);
@@ -594,6 +643,55 @@ function addStardust(n) {
   run.stardust += n;
   save.stardust += n;
 }
+// ---------- Juice: vibration, banners, flashes, slow motion, combos ----------
+function vibrate(pattern) {
+  if (save.settings && save.settings.vibe === false) return;
+  if (navigator.vibrate) { try { navigator.vibrate(pattern); } catch (e) { /* unsupported */ } }
+}
+
+function banner(text, sub, boss) {
+  const el = $('banner');
+  el.className = boss ? 'boss' : '';
+  el.innerHTML = `${sub ? `<small>${sub}</small>` : ''}${text}`;
+  void el.offsetWidth; // restart the animation
+  el.classList.add('show');
+}
+
+function screenFlash(color = '#ffffff') {
+  const el = $('flash');
+  el.style.background = color;
+  el.classList.remove('go');
+  void el.offsetWidth;
+  el.classList.add('go');
+}
+
+// Slow motion runs on real time, so it always lasts the same, whatever the game speed
+let timeScale = 1, slowmoLeft = 0;
+function slowmo(seconds, scale = 0.25) { slowmoLeft = seconds; timeScale = scale; }
+
+const COMBO_WINDOW = 1.4;   // seconds between kills to keep the chain alive
+const comboMult = () => 1 + Math.min(run.combo || 0, 50) * 0.005; // up to +25% energy
+function comboHit() {
+  run.combo = (run.combo || 0) + 1;
+  run.comboT = COMBO_WINDOW;
+  if (run.combo >= 5) {
+    const el = $('combo');
+    el.classList.remove('hidden', 'bump');
+    void el.offsetWidth;
+    el.classList.add('bump');
+    el.classList.toggle('hot', run.combo >= 25);
+    $('combo-n').textContent = '×' + run.combo;
+    $('combo-bonus').textContent = `COMBO +${Math.round((comboMult() - 1) * 100)}%`;
+    if (run.combo % 25 === 0) { Sound.play('reroll', { rate: 1 + run.combo / 100 }); vibrate(15); }
+  }
+  Progress.max('combo', run.combo);
+}
+function comboTick(dt) {
+  if (!run.combo) return;
+  run.comboT -= dt;
+  if (run.comboT <= 0) { run.combo = 0; $('combo').classList.add('hidden'); }
+}
+
 let toastTimer = 0;
 function toast(msg) {
   const el = $('toast');
@@ -618,6 +716,7 @@ function endWave() {
   Progress.max('flawless', run.flawless);
   run.wave++;
   Progress.max('wave', run.wave);
+  if (!BOSS_WAVE(run.wave)) banner('WAVE ' + run.wave);
   run.waveTime = 0;
   run.spawned = 0;
   run.spawnAcc = PACE.spawnWindow / waveCount(run.wave); // next wave starts immediately
@@ -685,6 +784,8 @@ function pickMutation(m) {
   refreshUpgradeCards();
   toast(`${mutIcon(m)} ${m.name}`);
   Sound.play(m.rarity === 'legendary' || m.rarity === 'epic' ? 'fanfare' : 'card_pick');
+  if (m.rarity === 'legendary') { screenFlash('#FFD34A'); vibrate([30, 30, 60]); }
+  else if (m.rarity === 'epic') screenFlash('#B06CFF');
   Sound.muffle(false, 0.8);
 }
 
@@ -719,6 +820,7 @@ function gameOver() {
 function update(dt) {
   const r = run;
   r.time += dt;
+  comboTick(dt);
 
   if (!r.over) {
     // Waves & spawning
@@ -732,7 +834,8 @@ function update(dt) {
         const e = spawnEnemy(pickType(r.wave, r.spawned === 0));
         if (e.boss) {
           Sound.play('boss_warn');
-          toast(e.type === 'worm' ? '⚠️ The World Eater approaches' : '⚠️ A Mothership approaches');
+          banner(ENEMY_INFO[e.type].name.toUpperCase(), '⚠ WAVE ' + r.wave, true);
+          vibrate([30, 60, 30]);
         }
         r.spawned++;
       }
@@ -791,6 +894,8 @@ function update(dt) {
         if (Math.hypot(tx - o.x, ty - o.y) < 2 || o.arriveT > 1.2) {
           o.arriving = false;
           Sound.play('lock_in', { x: o.x }); // the "ting" as it locks into orbit
+          r.waves.push({ x: o.x, y: o.y, r: 2, max: 14, t: 0.3, color: ORBITALS[o.type].trail });
+          burst(o.x, o.y, ORBITALS[o.type].trail, 6, false);
         }
       } else {
         const f = Math.min(1, dt * 14);
@@ -1374,23 +1479,42 @@ function render(now) {
 // Spinning planet on the main menu
 const menuCanvas = $('menu-planet');
 const mctx = menuCanvas.getContext('2d');
+let lobbyPulseAt = -10;
 function renderMenuPlanet(now) {
   if ($('menu').classList.contains('hidden')) return;
   const t = now / 1000;
+  const size = menuCanvas.width;
+  const k = size / 92; // world units → canvas pixels
+  // Tap-pulse: moons fling outward and snap back
+  const pt = t - lobbyPulseAt;
+  const fling = pt < 0.9 ? 1 + 0.45 * Math.sin(Math.PI * pt / 0.9) : 1;
   mctx.setTransform(1, 0, 0, 1, 0, 0);
-  mctx.clearRect(0, 0, 200, 200);
+  mctx.clearRect(0, 0, size, size);
   drawWith(mctx, () => {
-    mctx.setTransform(2.2, 0, 0, 2.2, 100, 100);
+    mctx.setTransform(k, 0, 0, k, size / 2, size / 2);
+    if (pt < 0.6) {
+      mctx.strokeStyle = `rgba(63,242,224,${1 - pt / 0.6})`;
+      mctx.lineWidth = 1.5;
+      mctx.beginPath(); mctx.arc(0, 0, PLANET_R + pt * 70, 0, TAU); mctx.stroke();
+    }
     drawPlanet(0, 0, PLANET_R, t, 0);
-    const kinds = ['rock', 'ice', 'lava', 'drone', 'gold'];
-    kinds.forEach((k, i) => {
-      const a = t * 0.9 + i * TAU / kinds.length;
-      const o = { type: k, x: Math.cos(a) * 34, y: Math.sin(a) * 34, hp: 1, maxHp: 1, id: i, trail: [] };
-      for (let s = 6; s >= 0; s--) { const aa = a - s * 0.06; o.trail.push(Math.cos(aa) * 34, Math.sin(aa) * 34); }
-      drawOrbital(o, t);
-    });
+    const rings = [[30, ['rock', 'ice', 'gold'], 1.1], [40, ['lava', 'drone', 'void', 'rock'], -0.7]];
+    for (const [rad, kinds, speed] of rings) {
+      const r = rad * fling;
+      kinds.forEach((kind, i) => {
+        const a = t * speed + i * TAU / kinds.length;
+        const o = { type: kind, x: Math.cos(a) * r, y: Math.sin(a) * r, hp: 1, maxHp: 1, id: i + rad, ring: 0, trail: [] };
+        for (let s = 6; s >= 0; s--) { const aa = a - s * 0.06 * Math.sign(speed); o.trail.push(Math.cos(aa) * r, Math.sin(aa) * r); }
+        drawOrbital(o, t);
+      });
+    }
   });
 }
+menuCanvas.addEventListener('click', () => {
+  lobbyPulseAt = performance.now() / 1000;
+  Sound.play('pulse_hum', { vol: 0.6 });
+  vibrate(20);
+});
 // Run the game's drawing functions against another 2D context
 function drawWith(c, fn) {
   const prev = ctx;
@@ -1498,6 +1622,13 @@ function refreshHud() {
   const frac = Math.max(0, run.hp) / maxHp;
   $('hp-fill').style.width = (frac * 100) + '%';
   $('hp-fill').classList.toggle('low', frac < 0.3);
+  $('danger').classList.toggle('on', frac < 0.3 && !run.over);
+  const boss = run.enemies.find(e => e.boss && !e.dead);
+  $('boss-bar').classList.toggle('hidden', !boss);
+  if (boss) {
+    $('boss-name').textContent = ENEMY_INFO[boss.type].name;
+    $('boss-fill').style.width = Math.max(0, boss.hp / boss.maxHp * 100) + '%';
+  }
   $('hp-text').textContent = `${fmt(Math.max(0, run.hp))} / ${fmt(maxHp)}`;
   $('wave-fill').style.width = Math.min(100, run.waveTime / PACE.waveLen * 100) + '%';
   $('orbit-count').textContent = `${run.orbitals.length}/${stat('slots')}`;
@@ -1723,7 +1854,69 @@ $('welcome-double').onclick = async () => {
   }, 30);
 };
 
-const OVERLAYS = ['menu', 'pause', 'gameover', 'observatory', 'draft', 'howto', 'welcome', 'missions'];
+// ============================================================
+//  Bestiary — real numbers from the same formulas the game uses
+// ============================================================
+function renderBestiary() {
+  const w = Number($('bst-wave').value);
+  $('bst-wave-val').textContent = w;
+  const odds = spawnChances(w);
+  const order = ['drifter', 'comet', 'scout', 'molten', 'wraith', 'worm', 'mother'];
+  const firstWave = { drifter: 1, worm: 10, mother: 20 };
+  for (const [type, from] of SPAWN_ODDS) firstWave[type] = from;
+  let html = '';
+  for (const type of order) {
+    const t = ENEMY_TYPES[type], info = ENEMY_INFO[type];
+    const seen = save.seen && save.seen[type];
+    if (!seen) {
+      html += `
+        <div class="beast locked">
+          <img src="assets/${info.sprite}.png" alt="">
+          <div class="bname">???<span class="bchance off">Appears from wave ${firstWave[type]}</span></div>
+          <div class="bdesc">Not encountered yet.</div>
+        </div>`;
+      continue;
+    }
+    let chance;
+    if (t.boss) chance = `<span class="bchance off">${type === 'worm' ? 'Waves 10, 30, 50…' : 'Waves 20, 40, 60…'}</span>`;
+    else chance = odds[type] > 0 ? `<span class="bchance">${Math.round(odds[type] * 100)}%</span>` : `<span class="bchance off">from wave ${firstWave[type]}</span>`;
+    const hp = enemyHp(w) * t.hp, dmg = enemyDmg(w) * t.dmg;
+    const dmgLabel = t.ranged ? (type === 'mother' ? 'Spawns' : 'Shot') : 'Dmg/s';
+    const dmgVal = type === 'mother' ? 'scouts' : fmt(dmg);
+    const moon = t.capture;
+    html += `
+      <div class="beast ${t.boss ? 'boss' : ''}">
+        <img src="assets/${info.sprite}.png" alt="">
+        <div class="bname">${info.name}${chance}</div>
+        <div class="bdesc">${info.desc}</div>
+        <div class="bstats">
+          <div><span>HP</span><b>${fmt(hp)}</b></div>
+          <div><span>${dmgLabel}</span><b>${dmgVal}</b></div>
+          <div><span>Speed</span><b>${Math.round(t.speed * PACE.speed)}</b></div>
+          <div><span>Energy</span><b>${fmt((2 + 0.3 * w) * t.energy)}</b></div>
+        </div>
+        <div class="bcap">Captured as <img src="assets/orb_${moon}.png" alt=""> ${MOON_NAMES[moon]}</div>
+      </div>`;
+  }
+  $('bst-list').innerHTML = html;
+}
+$('bst-wave').addEventListener('input', renderBestiary);
+
+// ============================================================
+//  Home base
+// ============================================================
+function refreshLobby() {
+  const sk = skin();
+  $('lobby-planet-name').textContent = sk.name;
+  $('lobby-perk').textContent = sk.perk;
+  const d = Progress.ensureDaily();
+  const done = d.list.filter(m => m.progress >= m.target).length;
+  const ready = d.list.some(m => m.progress >= m.target && !m.claimed) || (d.list.every(m => m.claimed) && !d.chestClaimed);
+  $('lobby-daily-text').textContent = d.chestClaimed ? 'Daily missions complete ✓' : `Daily missions ${done}/${d.list.length}${ready ? ' · reward ready!' : ''}`;
+  $('lobby-daily').classList.toggle('ready', ready);
+}
+
+const OVERLAYS = ['menu', 'pause', 'gameover', 'observatory', 'draft', 'howto', 'welcome', 'missions', 'bestiary'];
 function show(id) {
   for (const o of OVERLAYS) $(o).classList.toggle('hidden', o !== id);
   if (id === 'menu') {
@@ -1732,9 +1925,11 @@ function show(id) {
   }
   if (id === 'observatory') setObsTab(obsTab);
   if (id === 'missions') Progress.render();
+  if (id === 'menu') refreshLobby();
+  if (id === 'bestiary') { const s = $('bst-wave'); s.max = Math.max(30, save.bestWave + 10); if (!s.dataset.touched) s.value = Math.max(1, save.bestWave); renderBestiary(); }
   if (id === 'menu' || id === 'gameover') Progress.refreshBadge();
   if (id === 'pause') { renderMutList($('pause-muts')); Sound.muffle(true); }
-  if (id === 'menu' || id === 'observatory' || id === 'missions' || (id === 'howto' && !(run && !run.over))) {
+  if (id === 'menu' || id === 'observatory' || id === 'missions' || id === 'bestiary' || (id === 'howto' && !(run && !run.over))) {
     Sound.music('menu');
     Sound.muffle(false, 0.8);
   }
@@ -1766,6 +1961,10 @@ $('obs-close').onclick = () => show('menu');
 $('menu-missions-btn').onclick = () => show('missions');
 $('go-missions-btn').onclick = () => show('missions');
 $('missions-close').onclick = () => show('menu');
+$('menu-bestiary-btn').onclick = () => show('bestiary');
+$('bst-close').onclick = () => show('menu');
+$('lobby-daily').onclick = () => { Progress.setTab('daily'); show('missions'); };
+$('bst-wave').addEventListener('pointerdown', () => { $('bst-wave').dataset.touched = 1; });
 document.querySelectorAll('[data-mtab]').forEach(b => { b.onclick = () => Progress.setTab(b.dataset.mtab); });
 $('reroll-btn').onclick = () => {
   if (!run || run.rerolls <= 0) return;
@@ -1800,6 +1999,7 @@ document.addEventListener('pointerdown', ev => {
 }, true);
 
 if (!save.settings) save.settings = { sfx: true, music: true };
+if (save.settings.vibe === undefined) save.settings.vibe = true;
 function refreshSoundToggles() {
   document.querySelectorAll('.snd-toggle').forEach(b => b.classList.toggle('off', !save.settings[b.dataset.snd]));
   Sound.configure(save.settings);
@@ -1852,8 +2052,9 @@ let uiTimer = 0;
 function frame(now) {
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
+  if (slowmoLeft > 0) { slowmoLeft -= dt; if (slowmoLeft <= 0) timeScale = 1; }
   if (run && !paused) {
-    for (let i = 0; i < gameSpeed && !paused; i++) update(dt);
+    for (let i = 0; i < gameSpeed && !paused; i++) update(dt * timeScale);
   } else if (run && run.over) {
     update(dt); // let the collapse play out
   }

@@ -12,6 +12,8 @@ A neon space idle-defense game for phones. You are a small planet under attack. 
 - 20 mutations across 4 rarities, drafted every 3 waves
 - Bosses every 10 waves: the World Eater and the Mothership
 - Observatory: permanent upgrades and 6 unlockable planet skins, each with a perk and a drawback
+- Home base hub, Bestiary with live enemy stats, daily missions and 22 achievements
+- Combos, boss health bars, wave banners, slow-motion boss kills, phone vibration
 - Offline earnings, sound and music, works offline once installed
 
 ## Run locally

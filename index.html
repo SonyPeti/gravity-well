@@ -36,6 +36,11 @@
     <div id="orbit-info" class="chip ghost">🪐 <span id="orbit-count">0/3</span></div>
     <button id="speed-btn" class="chip">1x</button>
     <div id="toast"></div>
+    <div id="boss-bar" class="hidden"><div class="boss-name" id="boss-name">World Eater</div><div class="boss-track"><div id="boss-fill"></div></div></div>
+    <div id="banner"></div>
+    <div id="combo" class="hidden"><b id="combo-n">×10</b><span id="combo-bonus">COMBO</span></div>
+    <div id="flash"></div>
+    <div id="danger"></div>
     <button id="pulse-btn" aria-label="Gravity Pulse"><span>PULSE</span></button>
     <div id="hp-wrap"><div id="hp-fill"></div><span id="hp-text">50 / 50</span></div>
   </div>
@@ -57,27 +62,44 @@
   </section>
 </div>
 
-<!-- Main menu -->
-<div id="menu" class="overlay">
-  <div class="modal menu-modal">
-    <img id="menu-logo" src="assets/ui_logo.png" alt="Gravity Well">
-    <canvas id="menu-planet" width="200" height="200"></canvas>
-    <p class="muted tagline">Everything you destroy becomes part of your defense.</p>
-    <div class="stats-row">
-      <div><span class="label">Best wave</span><b id="menu-best">0</b></div>
-      <div><span class="label">Stardust</span><b id="menu-stardust" class="stardust"><img class="cur" src="assets/icon_stardust.png" alt="✦">0</b></div>
+<!-- Home base (lobby) -->
+<div id="menu" class="overlay lobby">
+  <div class="lobby-top">
+    <div class="lobby-chip"><span class="label">Stardust</span><b id="menu-stardust" class="stardust"><img class="cur" src="assets/icon_stardust.png" alt="✦">0</b></div>
+    <div class="lobby-chip right"><span class="label">Best wave</span><b id="menu-best">0</b></div>
+  </div>
+  <img id="menu-logo" src="assets/ui_logo.png" alt="Gravity Well">
+  <div class="lobby-center">
+    <canvas id="menu-planet" width="360" height="360" aria-label="Your planet — tap it"></canvas>
+    <div class="lobby-planet-name"><span id="lobby-planet-name">Terra Seed</span><span id="lobby-perk" class="muted"></span></div>
+    <button id="lobby-daily" class="lobby-daily">🎯 <span id="lobby-daily-text">Daily missions</span></button>
+  </div>
+  <div class="lobby-tiles">
+    <button id="menu-obs-btn" class="tile"><img src="assets/ui_observatory.png" alt=""><span>Observatory</span></button>
+    <button id="menu-planets-btn" class="tile"><img src="assets/skin_ember.png" alt=""><span>Planets</span></button>
+    <button id="menu-missions-btn" class="tile"><img src="assets/mut_tidalLock.png" alt=""><span>Missions</span><span class="claim-badge hidden">0</span></button>
+    <button id="menu-bestiary-btn" class="tile"><img src="assets/enemy_scout.png" alt=""><span>Bestiary</span></button>
+  </div>
+  <button id="play-btn" class="btn primary play-big">PLAY</button>
+  <div class="sound-row">
+    <button class="chip snd-toggle" data-snd="music">🎵</button>
+    <button class="chip snd-toggle" data-snd="sfx">🔊</button>
+    <button class="chip snd-toggle" data-snd="vibe">📳</button>
+    <button id="menu-howto-btn" class="chip">❔ How to play</button>
+  </div>
+</div>
+
+<!-- Bestiary -->
+<div id="bestiary" class="overlay hidden">
+  <div class="modal wide">
+    <h2>📖 Bestiary</h2>
+    <div class="wave-pick">
+      <span class="label">Stats at wave</span>
+      <input id="bst-wave" type="range" min="1" max="60" value="1">
+      <b id="bst-wave-val">1</b>
     </div>
-    <button id="play-btn" class="btn primary">Play</button>
-    <div class="btn-row three">
-      <button id="menu-obs-btn" class="btn"><span class="bi">🔭</span>Observatory</button>
-      <button id="menu-planets-btn" class="btn"><span class="bi">🪐</span>Planets</button>
-      <button id="menu-missions-btn" class="btn"><span class="bi">🎯</span>Missions<span class="claim-badge hidden">0</span></button>
-    </div>
-    <div class="sound-row">
-      <button class="chip snd-toggle" data-snd="music">🎵 Music</button>
-      <button class="chip snd-toggle" data-snd="sfx">🔊 Sound</button>
-    </div>
-    <button id="menu-howto-btn" class="link-btn">How to play</button>
+    <div id="bst-list"></div>
+    <button id="bst-close" class="btn">Back</button>
   </div>
 </div>
 
@@ -89,6 +111,7 @@
     <div class="sound-row">
       <button class="chip snd-toggle" data-snd="music">🎵 Music</button>
       <button class="chip snd-toggle" data-snd="sfx">🔊 Sound</button>
+      <button class="chip snd-toggle" data-snd="vibe">📳 Vibrate</button>
     </div>
     <button id="resume-btn" class="btn primary">Resume</button>
     <button id="quit-btn" class="btn danger">End run</button>
