@@ -500,11 +500,15 @@ button { font: inherit; color: inherit; cursor: pointer; }
 #boss-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #FF3D7F, #FF8A2A); transition: width .15s; }
 
 #banner {
-  position: absolute; left: 0; right: 0; top: 38%; text-align: center; pointer-events: none; z-index: 3;
+  position: absolute; left: 0; right: 0; top: 43%; text-align: center; pointer-events: none; z-index: 3;
   font-size: 34px; font-weight: 700; letter-spacing: .08em; color: #fff; opacity: 0;
   text-shadow: 0 0 18px rgba(63,242,224,.8), 0 2px 4px #000;
 }
-#banner small { display: block; font-size: 15px; letter-spacing: .2em; color: var(--friend); }
+#banner small { display: block; font-size: 13px; letter-spacing: .08em; color: var(--friend); white-space: nowrap; margin-bottom: 2px; }
+#banner small b { font-weight: 700; }
+#banner small b.e { color: var(--energy); }
+#banner small b.s { color: var(--stardust); }
+#banner small .cur { height: 1.05em; margin: 0 1px; }
 #banner.boss { color: #FFD0DC; text-shadow: 0 0 22px #FF3D7F, 0 2px 4px #000; }
 #banner.boss small { color: #FF8AA8; }
 #banner.show { animation: bannerIn 1.6s ease-out forwards; }

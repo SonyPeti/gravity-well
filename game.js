@@ -269,8 +269,9 @@ const PACE = {
 const waveCount = w => Math.min(100, Math.round(PACE.countBase + PACE.countPer * w));
 // Difficulty knobs, all in one place
 const BALANCE = {
-  hpBase: 6.2, hpGrowth: 1.20, hpCurve: 1.0012,   // enemy health per wave (curve gets steeper late)
+  hpBase: 6.6, hpGrowth: 1.20, hpCurve: 1.0012,   // enemy health per wave (curve gets steeper late)
   dmgBase: 3, dmgGrowth: 1.12, dmgCurve: 1.001,
+  clearBase: 4, clearPer: 1.5,   // energy for clearing a wave (before fast/flawless bonuses)
 };
 const enemyHp = w => BALANCE.hpBase * Math.pow(BALANCE.hpGrowth, w - 1) * Math.pow(BALANCE.hpCurve, (w - 1) * (w - 1));
 const enemyDmg = w => BALANCE.dmgBase * Math.pow(BALANCE.dmgGrowth, w - 1) * Math.pow(BALANCE.dmgCurve, (w - 1) * (w - 1));
@@ -701,14 +702,35 @@ function toast(msg) {
 }
 
 // ---------- Waves & draft ----------
+// Energy for clearing a wave: base grows with the wave, +50% for clearing before the timer,
+// +50% for taking no damage. The Wave Bonus upgrade adds on top.
+const waveClearBase = w => (BALANCE.clearBase + BALANCE.clearPer * w) * stat('energyKill');
+function waveClearReward(w) {
+  const early = run.waveTime < PACE.waveLen;
+  const fast = early ? Math.max(0, (PACE.waveLen - run.waveTime) / (PACE.waveLen - PACE.spawnWindow)) : 0;
+  const fastBonus = Math.min(1, fast) * 0.5;
+  const flawless = !run.tookDamage;
+  const total = waveClearBase(w) * (1 + fastBonus + (flawless ? 0.5 : 0)) + stat('waveBonus');
+  return { total, fast: fastBonus >= 0.1, flawless };
+}
+
 function endWave() {
   const w = run.wave;
-  const bonus = stat('waveBonus');
-  run.energy += bonus;
+  const rw = waveClearReward(w);
+  run.energy += rw.total;
   const sd = stardustForWave(w);
   addStardust(sd);
-  floatText(0, -PLANET_R - 34, `Wave ${w} cleared  +${sd} ✦`, '#FFD34A', 12);
-  if (bonus >= 1) floatText(0, -PLANET_R - 20, `+⚡${fmt(bonus)}`, '#7DFF8A', 11);
+  // Green energy bursts in from around the planet and gets pulled into it
+  for (let i = 0; i < 4; i++) {
+    const a = Math.random() * TAU;
+    burst(Math.cos(a) * 70, Math.sin(a) * 70, '#7DFF8A', 6, true);
+  }
+  const parts = [`<b class="e">+${ICON_E}${fmt(rw.total)}</b>`, `<b class="s">+${sd}${ICON_S}</b>`];
+  if (rw.fast) parts.push('FAST');
+  if (rw.flawless) parts.push('FLAWLESS');
+  run.clearSub = parts.join(' · ');
+  // Boss waves have no "WAVE N" banner, so show the reward as a toast instead
+  if (BOSS_WAVE(w + 1)) toast(`Wave ${w} clear · ${parts.slice(0, 2).join(' ')}`);
   if (w > save.bestWave) save.bestWave = w;
   persist();
   run.flawless = run.tookDamage ? 0 : run.flawless + 1;
@@ -716,7 +738,7 @@ function endWave() {
   Progress.max('flawless', run.flawless);
   run.wave++;
   Progress.max('wave', run.wave);
-  if (!BOSS_WAVE(run.wave)) banner('WAVE ' + run.wave);
+  if (!BOSS_WAVE(run.wave)) banner('WAVE ' + run.wave, run.clearSub);
   run.waveTime = 0;
   run.spawned = 0;
   run.spawnAcc = PACE.spawnWindow / waveCount(run.wave); // next wave starts immediately
