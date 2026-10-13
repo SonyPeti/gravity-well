@@ -1,0 +1,8 @@
+# Raw downloads (large; rebuilt into assets/ by tools/build-audio.js)
+art/downloads/*
+!art/downloads/CREDITS.md
+
+# Local tooling
+.claude/
+node_modules/
+*.log

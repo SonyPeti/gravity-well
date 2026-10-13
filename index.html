@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#070A18">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Gravity Well</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="assets/apple_touch_icon.png">
+<meta name="apple-mobile-web-app-title" content="Gravity Well">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="description" content="Everything you destroy becomes part of your defense. A neon space idle-defense game.">
+<meta property="og:title" content="Gravity Well">
+<meta property="og:description" content="Everything you destroy becomes part of your defense.">
+<meta property="og:image" content="assets/icon_512.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <header id="hud">
+    <div class="hud-item"><span class="label">Wave</span><span id="hud-wave" class="val">1</span></div>
+    <div class="hud-item"><span class="label">Energy</span><span id="hud-energy" class="val energy"><img class="cur" src="assets/icon_energy.png" alt="⚡">0</span></div>
+    <div class="hud-item"><span class="label">Stardust</span><span id="hud-stardust" class="val stardust"><img class="cur" src="assets/icon_stardust.png" alt="✦">0</span></div>
+    <button id="pause-btn" class="icon-btn" aria-label="Pause">❚❚</button>
+  </header>
+
+  <div id="stage">
+    <canvas id="game"></canvas>
+    <div id="wave-bar"><div id="wave-fill"></div></div>
+    <div id="orbit-info" class="chip ghost">🪐 <span id="orbit-count">0/3</span></div>
+    <button id="speed-btn" class="chip">1x</button>
+    <div id="toast"></div>
+    <button id="pulse-btn" aria-label="Gravity Pulse"><span>PULSE</span></button>
+    <div id="hp-wrap"><div id="hp-fill"></div><span id="hp-text">50 / 50</span></div>
+  </div>
+
+  <section id="panel">
+    <nav id="tabs">
+      <button class="tab active" data-tab="core">☀️ Core</button>
+      <button class="tab" data-tab="orbit">🪐 Orbit</button>
+      <button class="tab" data-tab="planet">🌍 Planet</button>
+    </nav>
+    <div id="buy-mode">
+      <span class="label">Buy</span>
+      <button class="chip active" data-mode="1">x1</button>
+      <button class="chip" data-mode="5">x5</button>
+      <button class="chip" data-mode="max">Max</button>
+      <div id="mut-strip" title="Your mutations"></div>
+    </div>
+    <div id="upgrades"></div>
+  </section>
+</div>
+
+<!-- Main menu -->
+<div id="menu" class="overlay">
+  <div class="modal menu-modal">
+    <img id="menu-logo" src="assets/ui_logo.png" alt="Gravity Well">
+    <canvas id="menu-planet" width="200" height="200"></canvas>
+    <p class="muted tagline">Everything you destroy becomes part of your defense.</p>
+    <div class="stats-row">
+      <div><span class="label">Best wave</span><b id="menu-best">0</b></div>
+      <div><span class="label">Stardust</span><b id="menu-stardust" class="stardust"><img class="cur" src="assets/icon_stardust.png" alt="✦">0</b></div>
+    </div>
+    <button id="play-btn" class="btn primary">Play</button>
+    <div class="btn-row">
+      <button id="menu-obs-btn" class="btn">🔭 Observatory</button>
+      <button id="menu-planets-btn" class="btn">🪐 Planets</button>
+    </div>
+    <div class="sound-row">
+      <button class="chip snd-toggle" data-snd="music">🎵 Music</button>
+      <button class="chip snd-toggle" data-snd="sfx">🔊 Sound</button>
+    </div>
+    <button id="menu-howto-btn" class="link-btn">How to play</button>
+  </div>
+</div>
+
+<!-- Pause -->
+<div id="pause" class="overlay hidden">
+  <div class="modal">
+    <h2>Paused</h2>
+    <div id="pause-muts" class="mut-list"></div>
+    <div class="sound-row">
+      <button class="chip snd-toggle" data-snd="music">🎵 Music</button>
+      <button class="chip snd-toggle" data-snd="sfx">🔊 Sound</button>
+    </div>
+    <button id="resume-btn" class="btn primary">Resume</button>
+    <button id="quit-btn" class="btn danger">End run</button>
+  </div>
+</div>
+
+<!-- Mutation draft -->
+<div id="draft" class="overlay hidden">
+  <div class="draft-wrap">
+    <h2>Choose a Mutation</h2>
+    <p class="muted" id="draft-sub">Wave cleared. Your planet evolves.</p>
+    <div id="draft-cards"></div>
+    <button id="reroll-btn" class="btn small">🎲 Reroll</button>
+  </div>
+</div>
+
+<!-- Game over -->
+<div id="gameover" class="overlay hidden">
+  <div class="modal">
+    <img class="hero-img" src="assets/ui_runcomplete.png" alt="">
+    <h2>Your planet collapsed</h2>
+    <div class="stats-row">
+      <div><span class="label">Wave</span><b id="go-wave">0</b></div>
+      <div><span class="label">Kills</span><b id="go-kills">0</b></div>
+      <div><span class="label">Stardust</span><b id="go-stardust" class="stardust">+0</b></div>
+    </div>
+    <p id="go-best" class="muted"></p>
+    <button id="retry-btn" class="btn primary">Play again</button>
+    <button id="go-obs-btn" class="btn">🔭 Observatory</button>
+  </div>
+</div>
+
+<!-- Observatory (permanent upgrades) -->
+<div id="observatory" class="overlay hidden">
+  <div class="modal wide">
+    <div class="obs-head">
+      <img src="assets/ui_observatory.png" alt="">
+      <div>
+        <h2>Observatory</h2>
+        <p class="muted">Stardust: <b id="obs-stardust" class="stardust"><img class="cur" src="assets/icon_stardust.png" alt="✦">0</b></p>
+      </div>
+    </div>
+    <nav class="seg">
+      <button class="seg-btn active" data-obs="upgrades">Upgrades</button>
+      <button class="seg-btn" data-obs="planets">Planets</button>
+    </nav>
+    <div id="obs-list"></div>
+    <div id="skin-list" class="hidden"></div>
+    <button id="obs-close" class="btn">Back</button>
+  </div>
+</div>
+
+<!-- Welcome back (offline earnings) -->
+<div id="welcome" class="overlay hidden">
+  <div class="modal welcome-modal">
+    <div class="welcome-planet">
+      <div class="welcome-orbit"></div>
+      <img id="welcome-img" src="assets/planet.png" alt="">
+    </div>
+    <h2>Welcome back!</h2>
+    <p class="muted" id="welcome-away">Your planet kept orbiting for 3h 12m</p>
+    <div class="welcome-amount"><img class="cur" src="assets/icon_stardust.png" alt="✦"><span id="welcome-amount">0</span></div>
+    <p class="welcome-rate" id="welcome-rate"></p>
+    <p class="welcome-full hidden" id="welcome-full">Storage full! Come back sooner, or upgrade the Relay Station.</p>
+    <button id="welcome-double" class="btn gold"><span class="ad-tag">▶ AD</span> Collect ×2</button>
+    <button id="welcome-collect" class="btn">Collect</button>
+  </div>
+</div>
+
+<!-- How to play (shown on first run) -->
+<div id="howto" class="overlay hidden">
+  <div class="modal wide">
+    <h2>How to play</h2>
+    <div class="howto-step">
+      <div class="howto-art capture-art">
+        <img src="assets/enemy_drifter.png" alt=""><span>➜</span><img src="assets/orb_rock.png" alt="">
+      </div>
+      <div><b>Destroy &amp; capture</b><p>Your planet fires on its own. Destroyed enemies can get pulled into orbit and fight for you.</p></div>
+    </div>
+    <div class="howto-step">
+      <div class="howto-art"><img src="assets/ui_pulse.png" alt="" class="round"></div>
+      <div><b>Gravity Pulse</b><p>Tap your planet (or PULSE) to blast enemies back and fling your moons outward.</p></div>
+    </div>
+    <div class="howto-step">
+      <div class="howto-art mini-cards"><i class="c1"></i><i class="c2"></i><i class="c3"></i></div>
+      <div><b>Mutate</b><p>Every 3 waves, pick a mutation. Stack them into wild builds.</p></div>
+    </div>
+    <button id="howto-ok" class="btn primary">Let's go!</button>
+  </div>
+</div>
+
+<script src="audio.js"></script>
+<script src="ads.js"></script>
+<script src="game.js"></script>
+</body>
+</html>

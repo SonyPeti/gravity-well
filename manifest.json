@@ -1,0 +1,16 @@
+{
+  "name": "Gravity Well",
+  "short_name": "Gravity Well",
+  "description": "Everything you destroy becomes part of your defense.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#070A18",
+  "theme_color": "#070A18",
+  "icons": [
+    { "src": "assets/icon_192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "assets/icon_512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
