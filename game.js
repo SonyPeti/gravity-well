@@ -61,7 +61,10 @@ fetch('assets.json').then(r => (r.ok ? r.json() : [])).then(list => {
 //  Save data
 // ============================================================
 const SAVE_KEY = 'gravitywell.v1';
-function defaultSave() { return { stardust: 0, bestWave: 0, meta: {}, tips: {}, skins: ['terra'], skin: 'terra' }; }
+function defaultSave() {
+  return { stardust: 0, bestWave: 0, meta: {}, tips: {}, skins: ['terra'], skin: 'terra',
+           settings: { sfx: true, music: true, vibe: true, musicVol: 1, sfxVol: 1 } };
+}
 function loadSave() {
   try {
     const s = JSON.parse(localStorage.getItem(SAVE_KEY));
@@ -800,7 +803,7 @@ function addStardust(n) {
 }
 // ---------- Juice: vibration, banners, flashes, slow motion, combos ----------
 function vibrate(pattern) {
-  if (save.settings && save.settings.vibe === false) return;
+  if (!Sound.ready || (save.settings && save.settings.vibe === false)) return;
   if (navigator.vibrate) { try { navigator.vibrate(pattern); } catch (e) { /* unsupported */ } }
 }
 
@@ -1095,7 +1098,7 @@ function update(dt) {
     if (r.wave <= 4 && r.pulseCd <= 0 && !save.tips.h_pulse && !Challenge.has('noPulse')
         && r.enemies.some(e => Math.hypot(e.x, e.y) < 70)) coach('pulse', 'Tap your planet (or PULSE) to blast enemies back!', '#pulse-btn');
     // Constellation: Auto-Pulse
-    if (Galaxy.has('autoPulse') && save.settings.autoPulse !== false && r.pulseCd <= 0
+    if (Galaxy.has('autoPulse') && !(save.settings && save.settings.autoPulse === false) && r.pulseCd <= 0
         && r.enemies.some(e => Math.hypot(e.x, e.y) < 55)) usePulse();
 
     // Core fire
@@ -2643,7 +2646,7 @@ let last = performance.now();
 let uiTimer = 0;
 const fpsMon = { frames: 0, time: 0, good: 0, holdUntil: 0 };
 function monitorFps(raw, now) {
-  const mode = save.settings.gfx || 'auto';
+  const mode = (save.settings && save.settings.gfx) || 'auto';
   if (mode !== 'auto') return;
   // Only judge real gameplay (menus and paused screens don't count)
   if (!run || paused || run.over || document.hidden || raw > 0.5) { fpsMon.frames = 0; fpsMon.time = 0; return; }
@@ -2678,7 +2681,7 @@ function frame(now) {
   uiTimer -= dt;
   if (uiTimer <= 0) {
     uiTimer = 0.1;
-    if (run && !paused && !run.over && Galaxy.has('autoBuy') && save.settings.autoBuy) autoBuyStep();
+    if (run && !paused && !run.over && Galaxy.has('autoBuy') && save.settings && save.settings.autoBuy) autoBuyStep();
     refreshHud(); refreshUpgradeCards();
   }
   if (toastTimer > 0) { toastTimer -= dt; if (toastTimer <= 0) $('toast').classList.remove('show'); }
