@@ -69,9 +69,9 @@ const save = loadSave();
 const UPGRADES = [
   // Core — the planet's own gun
   { id: 'coreDamage', tab: 'core', name: 'Core Damage',
-    value: l => 4 * Math.pow(1.15, l), show: fmt, cost: l => 6 * Math.pow(1.3, l) },
+    value: l => 6 * Math.pow(1.15, l), show: fmt, cost: l => 6 * Math.pow(1.3, l) },
   { id: 'fireRate', tab: 'core', name: 'Fire Rate', max: 50,
-    value: l => 0.8 + 0.1 * l, show: v => v.toFixed(2) + '/s', cost: l => 8 * Math.pow(1.35, l) },
+    value: l => 1.2 + 0.1 * l, show: v => v.toFixed(2) + '/s', cost: l => 8 * Math.pow(1.35, l) },
   { id: 'range', tab: 'core', name: 'Range', max: 20,
     value: l => 120 + 6 * l, show: v => Math.round(v) + 'm', cost: l => 15 * Math.pow(1.5, l) },
   { id: 'critChance', tab: 'core', name: 'Crit Chance', max: 26,
@@ -245,12 +245,19 @@ const ENEMY_TYPES = {
   mother:  { hp: 18,  speed: 12, r: 26, dmg: 4,   energy: 25,  capture: 'drone', boss: true, ranged: true },
 };
 
-const WAVE_LEN = 26;
-const SPAWN_WINDOW = 20;
-const waveCount = w => Math.min(90, Math.round(6 + 1.8 * w));
+// Pacing knobs, all in one place
+const PACE = {
+  waveLen: 17,       // max seconds per wave
+  spawnWindow: 11,   // enemies arrive during the first N seconds
+  clearDelay: 0.8,   // breather after the last enemy dies, then the next wave starts
+  countBase: 9, countPer: 2.6,   // a swarm of weaker enemies feels better than a trickle
+  speed: 1.5,        // enemy speed multiplier
+  spawnMargin: 6,    // how far off-screen enemies appear
+};
+const waveCount = w => Math.min(100, Math.round(PACE.countBase + PACE.countPer * w));
 // Difficulty knobs, all in one place
 const BALANCE = {
-  hpBase: 8, hpGrowth: 1.20, hpCurve: 1.0012,   // enemy health per wave (curve gets steeper late)
+  hpBase: 6.2, hpGrowth: 1.20, hpCurve: 1.0012,   // enemy health per wave (curve gets steeper late)
   dmgBase: 3, dmgGrowth: 1.12, dmgCurve: 1.001,
 };
 const enemyHp = w => BALANCE.hpBase * Math.pow(BALANCE.hpGrowth, w - 1) * Math.pow(BALANCE.hpCurve, (w - 1) * (w - 1));
@@ -364,7 +371,7 @@ let nextId = 1;
 
 function newRun() {
   run = {
-    wave: 1, waveTime: 0, spawned: 0, spawnAcc: 0, time: 0,
+    wave: 1, waveTime: 0, spawned: 0, spawnAcc: PACE.spawnWindow / waveCount(1), time: 0, // first enemy right away
     energy: 10 + metaVal('sStart'), stardust: 0, kills: 0,
     lv: {}, mut: {}, hp: 0,
     enemies: [], bullets: [], eBullets: [], orbitals: [], particles: [], texts: [], waves: [], holes: [], lasers: [],
@@ -453,12 +460,12 @@ function spawnEnemy(typeId, x, y, hpMult = 1) {
   const t = ENEMY_TYPES[typeId];
   if (x === undefined) {
     const a = Math.random() * TAU;
-    const d = Math.hypot(W, H) / 2 / SCALE + 25;
+    const d = Math.hypot(W, H) / 2 / SCALE + PACE.spawnMargin;
     x = Math.cos(a) * d; y = Math.sin(a) * d;
   }
   const hp = enemyHp(run.wave) * t.hp * hpMult;
   const e = {
-    type: typeId, x, y, r: t.r, speed: t.speed * rand(0.9, 1.1),
+    type: typeId, x, y, r: t.r, speed: t.speed * PACE.speed * rand(0.9, 1.1),
     hp, maxHp: hp, dmg: enemyDmg(run.wave) * t.dmg, energy: t.energy,
     boss: !!t.boss, ranged: !!t.ranged, ghost: !!t.ghost,
     atk: 0.3, shoot: rand(1, 2), flash: 0, rot: Math.random() * TAU, spinV: rand(-1.5, 1.5),
@@ -613,7 +620,7 @@ function endWave() {
   Progress.max('wave', run.wave);
   run.waveTime = 0;
   run.spawned = 0;
-  run.spawnAcc = 0;
+  run.spawnAcc = PACE.spawnWindow / waveCount(run.wave); // next wave starts immediately
   if (w % DRAFT_EVERY === 0) openDraft();
   else Sound.play('wave_clear');
 }
@@ -719,7 +726,7 @@ function update(dt) {
     const total = waveCount(r.wave);
     if (r.spawned < total) {
       r.spawnAcc += dt;
-      const interval = SPAWN_WINDOW / total;
+      const interval = PACE.spawnWindow / total;
       while (r.spawnAcc >= interval && r.spawned < total) {
         r.spawnAcc -= interval;
         const e = spawnEnemy(pickType(r.wave, r.spawned === 0));
@@ -730,7 +737,12 @@ function update(dt) {
         r.spawned++;
       }
     }
-    if (r.waveTime >= WAVE_LEN) { endWave(); if (r.drafting) return; }
+    // Wave cleared early: short breather, then straight into the next one
+    if (r.spawned >= total && r.enemies.length === 0) {
+      r.clearT = (r.clearT || 0) + dt;
+      if (r.clearT >= PACE.clearDelay) { r.clearT = 0; endWave(); if (r.drafting) return; }
+    } else r.clearT = 0;
+    if (r.waveTime >= PACE.waveLen) { r.clearT = 0; endWave(); if (r.drafting) return; }
 
     // Planet
     r.hp = Math.min(stat('maxHp'), r.hp + stat('regen') * dt);
@@ -1487,7 +1499,7 @@ function refreshHud() {
   $('hp-fill').style.width = (frac * 100) + '%';
   $('hp-fill').classList.toggle('low', frac < 0.3);
   $('hp-text').textContent = `${fmt(Math.max(0, run.hp))} / ${fmt(maxHp)}`;
-  $('wave-fill').style.width = Math.min(100, run.waveTime / WAVE_LEN * 100) + '%';
+  $('wave-fill').style.width = Math.min(100, run.waveTime / PACE.waveLen * 100) + '%';
   $('orbit-count').textContent = `${run.orbitals.length}/${stat('slots')}`;
   const cdMax = PULSE_CD * (mc('chainPulse') ? 0.5 : 1);
   const p = 1 - run.pulseCd / cdMax;
