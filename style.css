@@ -673,7 +673,14 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .sum-muts img { width: 26px; height: 26px; }
 .sum-muts sub { font-size: 9px; color: var(--muted); margin: 0 3px 0 -4px; }
 #gameover .hero-img { width: 110px; margin-bottom: 0; }
-#gameover .stats-row { margin: 8px 0; }
+#gameover .stats-row { margin: 8px 0 14px; }
+#gameover .stats-row > div { position: relative; }
+#gameover .stats-row > div.record b { color: var(--stardust); }
+#gameover .stats-row > div.record::after {
+  content: 'NEW RECORD'; position: absolute; left: 50%; bottom: -11px; transform: translateX(-50%); white-space: nowrap;
+  font-size: 8px; font-weight: 700; letter-spacing: .08em; padding: 1px 5px; border-radius: 6px;
+  background: var(--stardust); color: #3a2400;
+}
 
 /* ---------- Volume sliders ---------- */
 .vol-row { display: flex; align-items: center; gap: 10px; margin: 12px 0; text-align: left; }

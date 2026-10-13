@@ -1079,6 +1079,7 @@ function renderRunSummary(trackRecords) {
   const rec = save.records, isNew = {};
   const check = (key, v) => { if (trackRecords && v > 0 && v > (rec[key] || 0)) { isNew[key] = rec[key] !== undefined; rec[key] = v; } };
   check('kills', r.kills); check('captures', r.captures); check('combo', r.bestCombo); check('damage', total); check('elites', r.elitesKilled);
+  $('go-kills').parentElement.classList.toggle('record', !!isNew.kills); // kills live in the top stats row
   const mins = Math.floor(r.time / 60), secs = Math.floor(r.time % 60);
   const chip = (icon, label, value, key) =>
     `<div class="sum-chip ${isNew[key] ? 'record' : ''}"><span>${icon} ${label}</span><b>${value}</b>${isNew[key] ? '<i>NEW RECORD</i>' : ''}</div>`;
@@ -1685,8 +1686,8 @@ function drawEnemy(e, t, noGlow) {
     ctx.beginPath(); ctx.arc(e.x, e.y, e.r * 0.3, 0, TAU); ctx.fill();
   }
 
-  if (e.type === 'sentinel') {
-    // Shield arc facing the planet
+  if (e.type === 'sentinel' && !SPRITES.enemy_sentinel) {
+    // Shield arc facing the planet (the real sprite has its shield painted in)
     ctx.strokeStyle = 'rgba(143,216,255,0.85)';
     ctx.lineWidth = 2.2;
     ctx.beginPath(); ctx.arc(e.x, e.y, e.r + 4, face - 1.1, face + 1.1); ctx.stroke();

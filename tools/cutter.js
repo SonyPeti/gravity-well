@@ -184,7 +184,8 @@ function cutGrid(img, cols, rows, names, size, opts = {}) {
     const cx = xs[col], cy = ys[row], cw = xs[col + 1] - cx, ch = ys[row + 1] - cy;
     const inset = opts.inset || 0;
     const c = removeDarkBackground(toCanvas(img, cx + inset, cy + inset, cw - inset * 2, ch - inset * 2), opts);
-    out[name] = finalize(dropEdgeIntruders(c), 0, 0.04, size);
+    const cut = finalize(dropEdgeIntruders(c), 0, 0.04, size);
+    if (cut) out[name] = cut; // empty cell: skip it instead of failing
   });
   return out;
 }
@@ -268,6 +269,42 @@ async function runBatch2({ save = false } = {}) {
 }
 window.runBatch2 = runBatch2;
 
+// Third art batch (CHATGPT_PROMPT_2.md): galaxy enemies, Nebula Queen, elite trait icons.
+// Save the source images into art/source/ with these names (any of .webp/.png/.jpg), then
+// open cutter.html#batch3 and run runBatch3({ save: true }), then `node tools/build-sw.js`.
+const BATCH3 = [
+  // [source base name, output sprite name, output size]
+  ['enemy-sentinel', 'enemy_sentinel', 256],
+  ['enemy-blinker', 'enemy_blinker', 256],
+  ['enemy-hive', 'enemy_hive', 256],
+  ['enemy-swarmer', 'enemy_swarmer', 192],
+  ['boss-queen', 'boss_queen', 384],
+];
+async function loadSource(base) {
+  for (const ext of ['webp', 'png', 'jpg', 'jpeg']) {
+    try { return await loadImage(`/art/source/${base}.${ext}`); } catch (e) { /* try next */ }
+  }
+  return null;
+}
+async function runBatch3({ save = false } = {}) {
+  document.getElementById('out').innerHTML = '';
+  const results = {}, missing = [];
+  for (const [src, name, size] of BATCH3) {
+    const img = await loadSource(src);
+    if (!img) { missing.push(src); continue; }
+    const cut = finalize(removeDarkBackground(toCanvas(img)), 0, 0.04, size);
+    if (cut) results[name] = cut; else missing.push(src + " (empty)");
+  }
+  const icons = await loadSource('elite-icons');
+  if (icons) Object.assign(results, cutGrid(icons, 5, 1,
+    ['elite_swift', 'elite_armored', 'elite_regen', 'elite_explosive', 'elite_splitting'], 96, { inset: 4 }));
+  else missing.push('elite-icons');
+  for (const [name, c] of Object.entries(results)) preview(name, c);
+  if (save) for (const [name, c] of Object.entries(results)) await savePng(name, c);
+  return `${Object.keys(results).length} sprites` + (missing.length ? ` · missing: ${missing.join(', ')}` : '');
+}
+window.runBatch3 = runBatch3;
+
 function preview(name, canvas) {
   const f = document.createElement('figure');
   f.appendChild(canvas);
@@ -317,4 +354,4 @@ async function run({ save = false } = {}) {
 }
 
 window.run = run;
-if (location.hash === '#batch2') runBatch2(); else run();
+if (location.hash === '#batch3') runBatch3(); else if (location.hash === '#batch2') runBatch2(); else run();
