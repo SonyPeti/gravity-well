@@ -50,6 +50,9 @@ const Progress = (() => {
     { id: 'combo50',  name: 'Chain Reaction',    desc: 'Reach a 50-kill combo',             stat: 'combo',     target: 50,    reward: 40,  img: 'mut_shrapnel' },
     { id: 'flawless', name: 'Untouchable',       desc: 'Clear 5 waves in a row without taking damage', stat: 'flawless', target: 5, reward: 50, img: 'upg_durability' },
     { id: 'skins',    name: 'Planet Collector',  desc: 'Own all 6 planets',                 stat: 'skins',     target: 6,     reward: 150, img: 'skin_crystal' },
+    { id: 'nova1',    name: 'Supernova',         desc: 'Send your planet supernova for the first time', stat: 'supernovas', target: 1, reward: 100, img: 'mut_heavyCore' },
+    { id: 'galaxy4',  name: 'Void Walker',       desc: 'Reach Galaxy 4: the Void Rift',      stat: 'galaxy',    target: 4,     reward: 200, img: 'mut_hungry' },
+    { id: 'galaxy10', name: 'Deep Space',        desc: 'Reach Galaxy 10',                    stat: 'galaxy',    target: 10,    reward: 500, img: 'mut_blackHole' },
     { id: 'daily1',   name: 'Daily Routine',     desc: 'Complete all daily missions once',  stat: 'dailySets', target: 1,     reward: 15,  img: 'icon_stardust' },
     { id: 'daily7',   name: 'Dedicated',         desc: 'Complete all daily missions 7 times', stat: 'dailySets', target: 7,   reward: 100, img: 'mut_binaryStar' },
   ];

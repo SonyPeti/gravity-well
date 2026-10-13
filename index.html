@@ -56,6 +56,7 @@
       <button class="chip active" data-mode="1">x1</button>
       <button class="chip" data-mode="5">x5</button>
       <button class="chip" data-mode="max">Max</button>
+      <button id="auto-buy" class="chip hidden" title="Auto-Buy">🤖 Auto</button>
       <div id="mut-strip" title="Your mutations"></div>
     </div>
     <div id="upgrades"></div>
@@ -69,6 +70,7 @@
     <div class="lobby-chip right"><span class="label">Best wave</span><b id="menu-best">0</b></div>
   </div>
   <img id="menu-logo" src="assets/ui_logo.png" alt="Gravity Well">
+  <div id="lobby-galaxy" class="lobby-galaxy">Galaxy 1 · Home Cluster</div>
   <div class="lobby-center">
     <canvas id="menu-planet" width="360" height="360" aria-label="Your planet — tap it"></canvas>
     <div class="lobby-planet-name"><span id="lobby-planet-name">Terra Seed</span><span id="lobby-perk" class="muted"></span></div>
@@ -79,12 +81,22 @@
     <button id="menu-planets-btn" class="tile"><img src="assets/skin_ember.png" alt=""><span>Planets</span></button>
     <button id="menu-missions-btn" class="tile"><img src="assets/mut_tidalLock.png" alt=""><span>Missions</span><span class="claim-badge hidden">0</span></button>
     <button id="menu-bestiary-btn" class="tile"><img src="assets/enemy_scout.png" alt=""><span>Bestiary</span></button>
+    <button id="menu-galaxy-btn" class="tile wide galaxy-tile"><img src="assets/mut_blackHole.png" alt=""><span>Galaxy<small id="galaxy-tile-sub">Constellations &amp; new galaxies</small></span></button>
   </div>
   <button id="play-btn" class="btn primary play-big">PLAY</button>
   <div class="sound-row">
     <button id="menu-settings-btn" class="chip">⚙️ Settings</button>
     <button id="menu-howto-btn" class="chip">❔ How to play</button>
   </div>
+</div>
+
+<!-- Galaxy: supernova + constellations -->
+<div id="galaxy" class="overlay hidden">
+  <div class="modal wide">
+    <div id="galaxy-body"></div>
+    <button id="galaxy-close" class="btn">Back</button>
+  </div>
+  <div id="nova-flash"></div>
 </div>
 
 <!-- Settings -->
@@ -230,6 +242,7 @@
 <script src="audio.js"></script>
 <script src="ads.js"></script>
 <script src="progress.js"></script>
+<script src="galaxy.js"></script>
 <script src="game.js"></script>
 </body>
 </html>

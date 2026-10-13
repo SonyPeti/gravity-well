@@ -540,6 +540,48 @@ button { font: inherit; color: inherit; cursor: pointer; }
 #danger.on { animation: dangerPulse 1s ease-in-out infinite; }
 @keyframes dangerPulse { 0%, 100% { opacity: .35; } 50% { opacity: .9; } }
 
+/* ---------- Galaxy ---------- */
+.lobby-galaxy { text-align: center; font-size: 13px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; margin-top: 2px; text-shadow: 0 0 10px currentColor; }
+.tile.wide { grid-column: 1 / -1; }
+.tile span small { display: block; font-size: 11px; font-weight: 500; color: var(--muted); }
+.galaxy-tile.ready { border-color: var(--stardust); box-shadow: 0 0 18px rgba(255,211,74,.35); animation: goldPulse 1.8s ease-in-out infinite; }
+.galaxy-tile.ready small { color: var(--stardust); }
+.dm { color: #C9A8FF; text-shadow: 0 0 8px #9B5CFF; margin-right: 2px; }
+.gal-head { --gt: #3FF2E0; text-align: center; padding: 6px 0 4px; }
+.gal-num { font-size: 12px; font-weight: 700; letter-spacing: .2em; color: var(--muted); }
+.gal-name { font-size: 26px; font-weight: 700; color: var(--gt); text-shadow: 0 0 16px color-mix(in srgb, var(--gt) 60%, transparent); }
+.gal-stats { display: flex; justify-content: space-around; margin: 10px 0 6px; }
+.gal-stats div { display: flex; flex-direction: column; }
+.gal-stats b { font-size: 20px; }
+.nova-box { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 12px; margin: 8px 0 4px; text-align: center; }
+.nova-box.ready { border-color: rgba(255,211,74,.6); box-shadow: 0 0 18px rgba(255,211,74,.2); }
+.nova-title { font-weight: 700; font-size: 17px; }
+.nova-box p { margin: 6px 0; color: #c4c8e6; }
+.nova-box .btn { margin-top: 6px; }
+.cons-title { margin: 14px 0 8px; text-align: left; font-size: 17px; }
+.node {
+  display: flex; align-items: center; gap: 10px; padding: 9px 12px; margin-bottom: 7px; text-align: left;
+  background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+}
+.node > img { width: 36px; height: 36px; object-fit: contain; flex: none; }
+.node.unlock { border-style: dashed; }
+.node.owned { border-color: rgba(155,92,255,.5); }
+.node.done { opacity: .6; }
+.node .ndesc { color: #c4c8e6; }
+.node .ndesc .next { color: var(--energy); }
+.node button {
+  min-width: 64px; padding: 8px 10px; border-radius: 12px; border: 0; flex: none; font-weight: 700;
+  background: linear-gradient(180deg, #C9A8FF, #8B5CF6); color: #1a0b33;
+}
+.node button:disabled { background: var(--card-hi); color: var(--muted); }
+#nova-flash { position: fixed; inset: 0; pointer-events: none; opacity: 0; z-index: 60;
+  background: radial-gradient(circle, #fff 0%, #FFD34A 35%, #9B5CFF 70%, transparent 100%); }
+#nova-flash.go { animation: novaFlash 1.4s ease-out; }
+@keyframes novaFlash { 0% { opacity: 0; transform: scale(.2); } 20% { opacity: 1; transform: scale(1.2); } 100% { opacity: 0; transform: scale(2); } }
+#draft-cards.four { flex-wrap: wrap; }
+#draft-cards.four .mcard { flex: 0 0 calc(50% - 6px); min-height: 170px; }
+#draft-cards.four .micon img { width: 56px; height: 56px; }
+
 /* ---------- Volume sliders ---------- */
 .vol-row { display: flex; align-items: center; gap: 10px; margin: 12px 0; text-align: left; }
 .vol-row span { flex: 0 0 82px; font-weight: 600; font-size: 15px; }
@@ -562,3 +604,5 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .mini-cards .c1 { border-color: var(--common); transform: rotate(-8deg); }
 .mini-cards .c2 { border-color: var(--epic); transform: translateY(-4px); box-shadow: 0 0 10px var(--epic); }
 .mini-cards .c3 { border-color: var(--legendary); transform: rotate(8deg); }
+.dark-power { font-size: 13px; color: #c4c8e6; margin-top: 4px; }
+.dark-power b { color: #C9A8FF; }

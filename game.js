@@ -25,7 +25,7 @@ const pct = v => Math.round(v * 100) + '%';
 // Inline icon HTML (emoji stay as alt text / canvas fallback)
 const ICON_E = '<img class="cur" src="assets/icon_energy.png" alt="⚡">';
 const ICON_S = '<img class="cur" src="assets/icon_stardust.png" alt="✦">';
-const mutIcon = (m, cls = 'mut-ico') => `<img class="${cls}" src="assets/mut_${m.id}.png" alt="${m.icon}">`;
+const mutIcon = (m, cls = 'mut-ico') => `<img class="${cls}" src="assets/${m.img || 'mut_' + m.id}.png" alt="${m.icon}">`;
 
 // ============================================================
 //  Sprites — drop PNGs into /assets with these names and they
@@ -162,6 +162,10 @@ const MUTATIONS = [
   { id: 'blackHole',  rarity: 'legendary', icon: '⚫', name: 'Black Hole Heart', desc: 'Every 75 kills, a black hole devours nearby enemies' },
   { id: 'outerHalo',  rarity: 'legendary', icon: '🪐', name: 'Outer Halo',       desc: 'A 4th orbit ring and +6 orbit slots' },
   { id: 'goldenTouch',rarity: 'legendary', icon: '👑', name: 'Golden Touch',     desc: 'Golden moons are 10x more common' },
+  // Unlocked through Constellations (requires = node id)
+  { id: 'darkHarvest',rarity: 'rare',   icon: '✦', name: 'Dark Harvest', desc: 'Kills have a 3% chance to drop Stardust', requires: 'darkHarvest', img: 'icon_stardust' },
+  { id: 'echoPulse',  rarity: 'epic',   icon: '🌀', name: 'Echo Pulse',   desc: 'Every Gravity Pulse fires a second time', requires: 'echoPulse', img: 'ui_pulse' },
+  { id: 'twinCore',   rarity: 'legendary', icon: '⚡', name: 'Twin Core', desc: 'Your core fires two shots at once', requires: 'twinCore', img: 'upg_fireRate' },
 ];
 const MUT = Object.fromEntries(MUTATIONS.map(m => [m.id, m]));
 const DRAFT_EVERY = 3; // waves
@@ -197,18 +201,18 @@ const mc = id => run.mut[id] || 0;
 function stat(id) {
   switch (id) {
     case 'coreDamage':  return base(id) * metaVal('sCore') * Math.pow(1.4, mc('heavyCore')) * (mc('glassCannon') ? 2 : 1)
-                               * (isSkin('glacier') ? 0.9 : isSkin('gasgiant') ? 0.85 : 1);
+                               * (isSkin('glacier') ? 0.9 : isSkin('gasgiant') ? 0.85 : 1) * Galaxy.dmgMult();
     case 'critChance':  return base(id) + (isSkin('crystal') ? 0.1 : 0);
     case 'critMult':    return base(id) + (isSkin('crystal') ? 0.5 : 0);
     case 'fireRate':    return base(id) * Math.pow(1.3, mc('rapidCore'));
     case 'orbitDamage': return base(id) * metaVal('sOrbit') * (mc('wideOrbit') ? 1.15 : 1) * (mc('hungry') ? 1.5 : 1)
-                               * (mc('tidalLock') ? 3 : 1) * (mc('glassCannon') ? 2 : 1);
+                               * (mc('tidalLock') ? 3 : 1) * (mc('glassCannon') ? 2 : 1) * Galaxy.dmgMult();
     case 'slots':       return base(id) + (mc('outerHalo') ? 6 : 0) + (isSkin('gasgiant') ? 3 : 0);
     case 'capture':     return Math.min(0.95, base(id) + metaVal('sCapture') + 0.15 * mc('magnet'));
     case 'durability':  return base(id) * Math.pow(1.5, mc('denseRock'));
     case 'spin':        return mc('tidalLock') ? 0 : base(id) * (mc('retrograde') ? 1.3 : 1);
     case 'maxHp':       return base(id) * metaVal('sHull') * Math.pow(1.3, mc('thickAtmo')) * (mc('glassCannon') ? 0.5 : 1)
-                               * (isSkin('ember') || isSkin('crystal') ? 0.9 : 1);
+                               * (isSkin('ember') || isSkin('crystal') ? 0.9 : 1) * Galaxy.hpMult();
     case 'regen':       return base(id) * metaVal('sHull');
     case 'energyKill':  return base(id) * metaVal('sEnergy') * (isSkin('void') ? 0.9 : 1);
     default:            return base(id);
@@ -233,6 +237,7 @@ const ORBITALS = {
   drone: { dmg: 0.5, r: 4.5, trail: '#3FF2E0', shoots: true },
   void:  { dmg: 1.3, r: 4.5, trail: '#9B5CFF', pierce: true },
   gold:  { dmg: 1,   r: 5,   trail: '#FFD34A', gold: true },
+  star:  { dmg: 0.8, r: 5,   trail: '#7DFFEA', heal: true },   // Constellation unlock: heals the planet
 };
 
 const ENEMY_TYPES = {
@@ -243,6 +248,11 @@ const ENEMY_TYPES = {
   wraith:  { hp: 2.5, speed: 30, r: 10, dmg: 2,   energy: 4,   capture: 'void', ghost: true },
   worm:    { hp: 16,  speed: 13, r: 20, dmg: 4,   energy: 25,  capture: 'void', boss: true },
   mother:  { hp: 18,  speed: 12, r: 26, dmg: 4,   energy: 25,  capture: 'drone', boss: true, ranged: true },
+  // Galaxy enemies (one new type per galaxy)
+  sentinel:{ hp: 1.6, speed: 22, r: 10, dmg: 1.2, energy: 2.5, capture: 'ice', shielded: true },
+  blinker: { hp: 0.8, speed: 26, r: 7,  dmg: 1,   energy: 2.5, capture: 'void', blinks: true },
+  hive:    { hp: 4.5, speed: 12, r: 15, dmg: 2,   energy: 5,   capture: 'lava', hive: true },
+  swarmer: { hp: 0.25,speed: 48, r: 5,  dmg: 0.4, energy: 0.4, capture: 'rock' },
 };
 
 // Bestiary text
@@ -254,8 +264,16 @@ const ENEMY_INFO = {
   wraith:  { name: 'Void Wraith', sprite: 'enemy_wraith',    desc: 'Elite. Half-phases through moons: takes only 50% orbit damage.' },
   worm:    { name: 'World Eater', sprite: 'boss_worm',       desc: 'Boss. A colossal rock serpent that crawls straight for your planet.' },
   mother:  { name: 'Mothership',  sprite: 'boss_mothership', desc: 'Boss. Hangs back and keeps launching scouts at you.' },
+  sentinel:{ name: 'Sentinel',    sprite: 'enemy_scout',     tint: '#4AA8FF', css: 'hue-rotate(200deg) saturate(1.2)', galaxy: 2,
+             desc: 'Shielded. Takes 65% less damage from core shots: crack it with your moons.' },
+  blinker: { name: 'Blinker',     sprite: 'enemy_comet',     tint: '#FF4FD8', css: 'hue-rotate(110deg) saturate(1.6)', galaxy: 3,
+             desc: 'Teleports toward your planet every few seconds.' },
+  hive:    { name: 'Hive',        sprite: 'enemy_molten',    tint: '#7DFF8A', css: 'hue-rotate(90deg) saturate(1.3)', galaxy: 4,
+             desc: 'Bursts into a swarm of six tiny Swarmers when destroyed.' },
+  swarmer: { name: 'Swarmer',     sprite: 'enemy_drifter',   tint: '#7DFF8A', css: 'hue-rotate(100deg)', galaxy: 4, hidden: true,
+             desc: 'Tiny and fast. Comes out of Hives.' },
 };
-const MOON_NAMES = { rock: 'Rock moon', ice: 'Ice moon', lava: 'Lava moon', drone: 'Captured drone', void: 'Void shard' };
+const MOON_NAMES = { rock: 'Rock moon', ice: 'Ice moon', lava: 'Lava moon', drone: 'Captured drone', void: 'Void shard', star: 'Star moon' };
 
 // Pacing knobs, all in one place
 const PACE = {
@@ -273,9 +291,9 @@ const BALANCE = {
   dmgBase: 3, dmgGrowth: 1.12, dmgCurve: 1.001,
   clearBase: 4, clearPer: 1.5,   // energy for clearing a wave (before fast/flawless bonuses)
 };
-const enemyHp = w => BALANCE.hpBase * Math.pow(BALANCE.hpGrowth, w - 1) * Math.pow(BALANCE.hpCurve, (w - 1) * (w - 1));
+const enemyHp = w => BALANCE.hpBase * Math.pow(BALANCE.hpGrowth, w - 1) * Math.pow(BALANCE.hpCurve, (w - 1) * (w - 1)) * Galaxy.enemyHpMult();
 const enemyDmg = w => BALANCE.dmgBase * Math.pow(BALANCE.dmgGrowth, w - 1) * Math.pow(BALANCE.dmgCurve, (w - 1) * (w - 1));
-const stardustForWave = w => Math.max(1, Math.floor((1 + w * 0.5) * metaVal('sStardust')));
+const stardustForWave = w => Math.max(1, Math.floor((1 + w * 0.5) * metaVal('sStardust') * Galaxy.dustMult()));
 
 // ============================================================
 //  Canvas & background
@@ -343,6 +361,15 @@ function buildBackground() {
     }
     g.globalAlpha = 1;
   }
+  const gi = Galaxy.info();
+  if (gi.tint) {
+    g.globalCompositeOperation = 'color';
+    g.globalAlpha = 0.5;
+    g.fillStyle = gi.tint;
+    g.fillRect(0, 0, W, H);
+    g.globalCompositeOperation = 'source-over';
+    g.globalAlpha = 1;
+  }
   twinkles.length = 0;
   for (let i = 0; i < 28; i++) twinkles.push({ x: Math.random() * W, y: Math.random() * H, p: Math.random() * TAU, s: rand(0.8, 2) });
 }
@@ -382,6 +409,13 @@ let buyMode = '1';
 let activeTab = 'core';
 let nextId = 1;
 
+// Energy for runs that warp past the early waves, so you can buy upgrades right away
+function warpEnergy(W) {
+  let e = 0;
+  for (let w = 1; w < W; w++) e += waveCount(w) * (2 + 0.3 * w) + BALANCE.clearBase + BALANCE.clearPer * w;
+  return e * 0.85;
+}
+
 function newRun() {
   run = {
     wave: 1, waveTime: 0, spawned: 0, spawnAcc: PACE.spawnWindow / waveCount(1), time: 0, // first enemy right away
@@ -395,6 +429,13 @@ function newRun() {
     shake: 0, hurt: 0, wobble: 0, over: false, drafting: false,
   };
   run.hp = stat('maxHp');
+  const warp = Galaxy.warpWave();
+  if (warp > 1) {
+    run.wave = warp;
+    run.energy += warpEnergy(warp);
+    run.spawnAcc = PACE.spawnWindow / waveCount(warp);
+  }
+  run.shield = Galaxy.has('shield') ? stat('maxHp') * 0.15 : 0;
   run.flawless = 0;
   run.tookDamage = false;
   for (let i = 0; i < metaVal('sMoons'); i++) addOrbital('rock', 0, 0, false);
@@ -406,7 +447,9 @@ function newRun() {
   $('combo').classList.add('hidden');
   $('boss-bar').classList.add('hidden');
   timeScale = 1; slowmoLeft = 0;
-  banner('WAVE 1', 'DEFEND YOUR PLANET');
+  banner('WAVE ' + run.wave, run.wave > 1 ? 'WARP DRIVE ENGAGED' : 'DEFEND YOUR PLANET');
+  $('auto-buy').classList.toggle('hidden', !Galaxy.has('autoBuy'));
+  if (Galaxy.has('headStart')) setTimeout(() => { if (run && !run.over && !run.drafting && !paused) openDraft(); }, 700);
 }
 
 // ---------- Orbitals ----------
@@ -439,6 +482,7 @@ function tryCapture(e) {
   let type = t.capture;
   if (isSkin('void') && Math.random() < 0.25) type = 'void';
   if (Math.random() < 0.01 * (mc('goldenTouch') ? 10 : 1)) type = 'gold';
+  else if (Galaxy.has('starMoon') && Math.random() < 0.08) type = 'star';
   const o = addOrbital(type, e.x, e.y, true);
   if (o) {
     Sound.play('capture', { x: e.x });
@@ -466,18 +510,22 @@ function shatter(o) {
 // ---------- Spawning ----------
 // [type, first wave, cumulative roll threshold]; checked top to bottom, the rest are drifters.
 // Shared by spawning and the Bestiary so the shown odds are always the real ones.
-const SPAWN_ODDS = [
-  ['wraith', 15, 0.08],
-  ['molten', 7, 0.20],
-  ['scout', 5, 0.33],
-  ['comet', 3, 0.55],
-];
+function spawnOdds() {
+  return [
+    ['wraith', Galaxy.mod('earlyWraith') ? 8 : 15, 0.08],
+    ['molten', Galaxy.mod('earlyMolten') ? 4 : 7, 0.20],
+    ['scout', 5, 0.33],
+    ['comet', 3, Galaxy.mod('cometX2') ? 0.70 : 0.55],
+  ];
+}
 const BOSS_WAVE = w => (w % 10 === 0 ? (w % 20 === 0 ? 'mother' : 'worm') : null);
 
 function pickType(w, isFirst) {
   if (isFirst && BOSS_WAVE(w)) return BOSS_WAVE(w);
+  const extra = Galaxy.extraSpawn(w);   // this galaxy's new enemies roll first
+  if (extra) return extra;
   const r = Math.random();
-  for (const [type, from, cum] of SPAWN_ODDS) if (w >= from && r < cum) return type;
+  for (const [type, from, cum] of spawnOdds()) if (w >= from && r < cum) return type;
   return 'drifter';
 }
 
@@ -485,13 +533,15 @@ function pickType(w, isFirst) {
 function spawnChances(w) {
   const res = {};
   let prev = 0;
-  for (const [type, from, cum] of SPAWN_ODDS) {
+  for (const [type, from, cum] of spawnOdds()) {
     if (w < from) { res[type] = 0; continue; }
     res[type] = cum - prev;
     prev = cum;
   }
   res.drifter = 1 - prev;
-  return res;
+  const { res: extra, left } = Galaxy.extraChances(w);
+  for (const k in res) res[k] *= left;
+  return Object.assign(res, extra);
 }
 
 function spawnEnemy(typeId, x, y, hpMult = 1) {
@@ -557,11 +607,22 @@ function killEnemy(e) {
   else if (t.splits) Sound.play('kill_big', { x: e.x, vol: 0.6 });
   else Sound.play('kill', { x: e.x });
   if (mc('siphon')) run.hp = Math.min(stat('maxHp'), run.hp + stat('maxHp') * 0.005 * mc('siphon'));
+  if (t.hive) {
+    for (let i = 0; i < 6; i++) {
+      const a = i * TAU / 6;
+      spawnEnemy('swarmer', e.x + Math.cos(a) * 10, e.y + Math.sin(a) * 10);
+    }
+  }
+  if (mc('darkHarvest') && Math.random() < 0.03) {
+    const s = Math.max(1, Math.round(Galaxy.dustMult()));
+    addStardust(s);
+    floatText(e.x, e.y - 12, `+${s} ✦`, '#FFD34A', 11);
+  }
   if (t.splits) {
     for (let i = 0; i < 2; i++) spawnEnemy('drifter', e.x + rand(-8, 8), e.y + rand(-8, 8), 0.6);
   }
   if (e.boss) {
-    const bonus = Math.floor(5 * metaVal('sStardust'));
+    const bonus = Math.floor(5 * metaVal('sStardust') * Galaxy.dustMult());
     addStardust(bonus);
     floatText(e.x, e.y - 30, `+${bonus} ✦`, '#FFD34A', 16);
   }
@@ -577,6 +638,12 @@ function killEnemy(e) {
 }
 
 function hitPlanet(dmg, big) {
+  if (run.shield > 0) {
+    const absorbed = Math.min(run.shield, dmg);
+    run.shield -= absorbed;
+    dmg -= absorbed;
+    if (dmg <= 0) { Sound.play('orb_drone', { vol: 0.6 }); return; }
+  }
   run.tookDamage = true;
   Sound.play('planet_hit', { vol: big ? 1.4 : 1 });
   if (big) vibrate(45); else if (!run.lastBuzz || run.time - run.lastBuzz > 0.4) { run.lastBuzz = run.time; vibrate(12); }
@@ -611,9 +678,14 @@ function fireFrom(x, y, range, dmgMult) {
 function usePulse() {
   if (!run || run.over || paused || run.pulseCd > 0) return;
   run.pulseCd = PULSE_CD * (mc('chainPulse') ? 0.5 : 1);
-  run.pulseT = 0.9;
   Progress.track('pulses');
   vibrate(35);
+  if (mc('echoPulse')) run.echoAt = run.time + 0.6;
+  pulseBlast();
+}
+
+function pulseBlast() {
+  run.pulseT = 0.9;
   const dmg = stat('coreDamage') * 2;
   for (const e of run.enemies) {
     const d = Math.hypot(e.x, e.y);
@@ -732,12 +804,14 @@ function endWave() {
   // Boss waves have no "WAVE N" banner, so show the reward as a toast instead
   if (BOSS_WAVE(w + 1)) toast(`Wave ${w} clear · ${parts.slice(0, 2).join(' ')}`);
   if (w > save.bestWave) save.bestWave = w;
+  if (w > (save.galaxyBest || 0)) save.galaxyBest = w;
   persist();
   run.flawless = run.tookDamage ? 0 : run.flawless + 1;
   run.tookDamage = false;
   Progress.max('flawless', run.flawless);
   run.wave++;
   Progress.max('wave', run.wave);
+  if (Galaxy.has('shield')) run.shield = stat('maxHp') * 0.15;
   if (!BOSS_WAVE(run.wave)) banner('WAVE ' + run.wave, run.clearSub);
   run.waveTime = 0;
   run.spawned = 0;
@@ -747,7 +821,7 @@ function endWave() {
 }
 
 function rollMutations(n) {
-  const pool = MUTATIONS.filter(m => m.stack || !mc(m.id));
+  const pool = MUTATIONS.filter(m => (m.stack || !mc(m.id)) && (!m.requires || Galaxy.has(m.requires)));
   const picks = [];
   while (picks.length < n && pool.length) {
     const total = pool.reduce((s, m) => s + RARITY[m.rarity].weight, 0);
@@ -763,7 +837,7 @@ let draftOptions = [];
 function openDraft() {
   run.drafting = true;
   paused = true;
-  draftOptions = rollMutations(3);
+  draftOptions = rollMutations(Galaxy.has('fourth') ? 4 : 3);
   renderDraft();
   show('draft');
   Sound.play('draft_open');
@@ -773,6 +847,7 @@ function openDraft() {
 function renderDraft() {
   const wrap = $('draft-cards');
   wrap.innerHTML = '';
+  wrap.classList.toggle('four', draftOptions.length > 3);
   for (const m of draftOptions) {
     const el = document.createElement('button');
     el.className = 'mcard ' + m.rarity;
@@ -872,12 +947,17 @@ function update(dt) {
     // Planet
     r.hp = Math.min(stat('maxHp'), r.hp + stat('regen') * dt);
     r.pulseCd = Math.max(0, r.pulseCd - dt);
+    if (r.echoAt && r.time >= r.echoAt) { r.echoAt = 0; pulseBlast(); }
+    // Constellation: Auto-Pulse
+    if (Galaxy.has('autoPulse') && save.settings.autoPulse !== false && r.pulseCd <= 0
+        && r.enemies.some(e => Math.hypot(e.x, e.y) < 55)) usePulse();
 
     // Core fire
     r.fireAcc = Math.min(r.fireAcc + dt * stat('fireRate'), 3);
     let shots = 0;
     while (r.fireAcc >= 1 && shots < 4) {
       const a = fireFrom(0, 0, stat('range'), 1);
+      if (a !== false && mc('twinCore')) fireFrom(0, 0, stat('range'), 1);
       if (a === false) { r.fireAcc = Math.min(r.fireAcc, 1); break; }
       r.aim = a;
       r.fireAcc -= 1;
@@ -955,6 +1035,7 @@ function update(dt) {
         if (def.slow || mc('frostbite')) e.slow = 1.5;
         if (def.burn || mc('kindling')) { e.burn = 3; e.burnDps = Math.max(e.burnDps, od * 0.4); }
         if (def.gold) { const g = (1 + 0.3 * r.wave) * 0.5; r.energy += g; }
+        if (def.heal) r.hp = Math.min(stat('maxHp'), r.hp + stat('maxHp') * 0.01);
         if (!e.boss) e.kb += 25;
         hit = true;
         if (!def.pierce) break;
@@ -986,6 +1067,18 @@ function update(dt) {
       e.y += (e.y / d) * e.kb * dt;
       e.kb *= Math.exp(-4 * dt);
     } else e.kb = 0;
+    // Blinkers teleport toward the planet every few seconds
+    if (ENEMY_TYPES[e.type].blinks) {
+      e.blinkT = (e.blinkT ?? rand(1.5, 2.5)) - dt;
+      if (e.blinkT <= 0 && d > e.stopAt + 45) {
+        e.blinkT = 2.6;
+        burst(e.x, e.y, '#FF4FD8', 8, false);
+        const jump = Math.min(55, d - e.stopAt - 15);
+        e.x -= (e.x / d) * jump;
+        e.y -= (e.y / d) * jump;
+        burst(e.x, e.y, '#FF4FD8', 8, false);
+      }
+    }
     let speed = e.speed * (e.slow > 0 ? 0.55 : 1);
     if (mc('hungry') && d < 170) speed *= 1.35;
     if (d > e.stopAt) {
@@ -1046,7 +1139,7 @@ function update(dt) {
         const e = b.target;
         if (isSkin('ember')) { e.burn = 2; e.burnDps = Math.max(e.burnDps, stat('coreDamage') * 0.3); }
         if (isSkin('glacier')) e.slow = Math.max(e.slow, 1);
-        damageEnemy(e, b.dmg, b.crit);
+        damageEnemy(e, b.dmg * (ENEMY_TYPES[e.type].shielded ? 0.35 : 1), b.crit);
         if (!e.dead) Sound.play('hit', { x: e.x });
         b.life = 0;
         continue;
@@ -1119,7 +1212,8 @@ function binaryStarPos() {
 //  Render
 // ============================================================
 function enemyColor(type) {
-  return { drifter: '#FF5A4E', comet: '#8FD8FF', scout: '#FF3D7F', molten: '#FF8A2A', wraith: '#9B5CFF', worm: '#FF3B3B', mother: '#FF3D7F' }[type];
+  return { drifter: '#FF5A4E', comet: '#8FD8FF', scout: '#FF3D7F', molten: '#FF8A2A', wraith: '#9B5CFF', worm: '#FF3B3B', mother: '#FF3D7F',
+           sentinel: '#4AA8FF', blinker: '#FF4FD8', hive: '#7DFF8A', swarmer: '#7DFF8A' }[type];
 }
 
 function jagged(x, y, r, verts, rot) {
@@ -1131,6 +1225,25 @@ function jagged(x, y, r, verts, rot) {
     i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
   }
   ctx.closePath();
+}
+
+// Recolor a sprite (keeps its shading, swaps the hue): galaxy enemies and star moons reuse art this way
+const tintCache = {};
+function tintedSprite(name, color) {
+  const key = name + color;
+  if (tintCache[key]) return tintCache[key];
+  const img = sprite(name);
+  if (!img) return null;
+  const c = document.createElement('canvas');
+  c.width = img.width; c.height = img.height;
+  const g = c.getContext('2d');
+  g.drawImage(img, 0, 0);
+  g.globalCompositeOperation = 'color';
+  g.fillStyle = color;
+  g.fillRect(0, 0, c.width, c.height);
+  g.globalCompositeOperation = 'destination-in';
+  g.drawImage(img, 0, 0);
+  return (tintCache[key] = c);
 }
 
 function drawSprite(img, x, y, size, rot) {
@@ -1205,7 +1318,7 @@ function drawOrbital(o, t) {
   glow(o.x, o.y, def.r * 3, def.trail, 0.4 * fade);
   ctx.globalCompositeOperation = 'source-over';
   ctx.globalAlpha = fade;
-  const img = sprite('orb_' + o.type);
+  const img = o.type === 'star' ? tintedSprite('orb_gold', '#3FF2E0') : sprite('orb_' + o.type);
   const r = def.r;
   if (img) {
     // Drone sprite points up: face along the orbit (reversed on a retrograde ring)
@@ -1257,13 +1370,15 @@ function drawEnemy(e, t) {
   ctx.globalCompositeOperation = 'lighter';
   glow(e.x, e.y, e.r * (e.boss ? 2.6 : 2.2), col, e.boss ? 0.45 : 0.3);
   ctx.globalCompositeOperation = 'source-over';
-  const spr = sprite(e.boss ? 'boss_' + (e.type === 'worm' ? 'worm' : 'mothership') : 'enemy_' + e.type);
+  const inf = ENEMY_INFO[e.type];
+  const spr = inf.tint ? tintedSprite(inf.sprite, inf.tint) : sprite(inf.sprite);
   const face = Math.atan2(-e.y, -e.x);
 
   if (spr) {
     const SPRITE_DRAW = {
       drifter: [2.9, e.rot], molten: [2.9, e.rot], comet: [3.6, face + Math.PI / 2],
       scout: [3, face + Math.PI / 2], wraith: [3.2, 0], worm: [3.6, 0], mother: [2.9, 0],
+      sentinel: [3, face + Math.PI / 2], blinker: [3.6, face + Math.PI / 2], hive: [2.9, e.rot], swarmer: [3, e.rot],
     };
     const [size, rot] = SPRITE_DRAW[e.type];
     drawSprite(spr, e.x, e.y, e.r * size, rot);
@@ -1344,6 +1459,12 @@ function drawEnemy(e, t) {
     ctx.beginPath(); ctx.arc(e.x, e.y, e.r * 0.3, 0, TAU); ctx.fill();
   }
 
+  if (e.type === 'sentinel') {
+    // Shield arc facing the planet
+    ctx.strokeStyle = 'rgba(143,216,255,0.85)';
+    ctx.lineWidth = 2.2;
+    ctx.beginPath(); ctx.arc(e.x, e.y, e.r + 4, face - 1.1, face + 1.1); ctx.stroke();
+  }
   if (e.slow > 0) {
     ctx.fillStyle = 'rgba(143,216,255,0.3)';
     ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, TAU); ctx.fill();
@@ -1445,6 +1566,11 @@ function render(now) {
   // Planet
   if (!r.over) {
     const R = PLANET_R * (1 + Math.sin(tt * 30) * r.wobble * 0.3);
+    if (r.shield > 0) {
+      ctx.strokeStyle = `rgba(143,216,255,${0.35 + 0.25 * Math.sin(tt * 4)})`;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(0, 0, PLANET_R + 10, 0, TAU); ctx.stroke();
+    }
     drawPlanet(0, 0, R, tt, r.hurt);
     // Pulse ready ring
     const cdMax = PULSE_CD * (mc('chainPulse') ? 0.5 : 1);
@@ -1585,7 +1711,18 @@ function purchasePlan(u) {
   return { n, cost, maxed: false };
 }
 
-let buyStreak = 0, lastBuyAt = 0;
+let buyStreak = 0, lastBuyAt = 0, autoBuying = false;
+function autoBuyStep() {
+  let best = null, bc = Infinity;
+  const mode = buyMode;
+  buyMode = '1';
+  for (const u of UPGRADES) {
+    const p = purchasePlan(u);
+    if (!p.maxed && p.cost <= run.energy && p.cost < bc) { bc = p.cost; best = u; }
+  }
+  if (best) { autoBuying = true; buyUpgrade(best); autoBuying = false; }
+  buyMode = mode;
+}
 function buyUpgrade(u) {
   if (!run || run.over || paused) return;
   const plan = purchasePlan(u);
@@ -1594,7 +1731,7 @@ function buyUpgrade(u) {
   const now = performance.now();
   buyStreak = now - lastBuyAt < 700 ? Math.min(buyStreak + 1, 10) : 0;
   lastBuyAt = now;
-  Sound.play('buy', { rate: 1 + buyStreak * 0.045 + (plan.n > 1 ? 0.1 : 0) });
+  if (!autoBuying) Sound.play('buy', { rate: 1 + buyStreak * 0.045 + (plan.n > 1 ? 0.1 : 0) });
   const oldMax = stat('maxHp');
   run.energy -= plan.cost;
   run.lv[u.id] = (run.lv[u.id] || 0) + plan.n;
@@ -1780,7 +1917,7 @@ function equipSkin(id) {
 //  Offline earnings — the planet keeps orbiting while you're away
 // ============================================================
 const OFFLINE_MIN_MS = 5 * 60 * 1000;
-const offlineRate = () => (2 + save.bestWave * 1.5) * (1 + 0.25 * metaLv('sRelay')) * metaVal('sStardust'); // per hour
+const offlineRate = () => (2 + save.bestWave * 1.5) * (1 + 0.25 * metaLv('sRelay')) * metaVal('sStardust') * Galaxy.dustMult(); // per hour
 const offlineCapHours = () => 8 + 2 * metaLv('sRelay');
 
 function fmtDuration(ms) {
@@ -1883,18 +2020,20 @@ function renderBestiary() {
   const w = Number($('bst-wave').value);
   $('bst-wave-val').textContent = w;
   const odds = spawnChances(w);
-  const order = ['drifter', 'comet', 'scout', 'molten', 'wraith', 'worm', 'mother'];
-  const firstWave = { drifter: 1, worm: 10, mother: 20 };
-  for (const [type, from] of SPAWN_ODDS) firstWave[type] = from;
+  const order = ['drifter', 'comet', 'scout', 'molten', 'wraith', 'sentinel', 'blinker', 'hive', 'worm', 'mother'];
+  const firstWave = { drifter: 1, worm: 10, mother: 20, sentinel: 6, blinker: 8, hive: 10 };
+  for (const [type, from] of spawnOdds()) firstWave[type] = from;
   let html = '';
   for (const type of order) {
     const t = ENEMY_TYPES[type], info = ENEMY_INFO[type];
     const seen = save.seen && save.seen[type];
     if (!seen) {
+      const where = info.galaxy && Galaxy.n < info.galaxy
+        ? `Discovered in Galaxy ${info.galaxy}` : `Appears from wave ${firstWave[type]}`;
       html += `
         <div class="beast locked">
           <img src="assets/${info.sprite}.png" alt="">
-          <div class="bname">???<span class="bchance off">Appears from wave ${firstWave[type]}</span></div>
+          <div class="bname">???<span class="bchance off">${where}</span></div>
           <div class="bdesc">Not encountered yet.</div>
         </div>`;
       continue;
@@ -1908,7 +2047,7 @@ function renderBestiary() {
     const moon = t.capture;
     html += `
       <div class="beast ${t.boss ? 'boss' : ''}">
-        <img src="assets/${info.sprite}.png" alt="">
+        <img src="assets/${info.sprite}.png" alt="" style="${info.css ? 'filter:' + info.css : ''}">
         <div class="bname">${info.name}${chance}</div>
         <div class="bdesc">${info.desc}</div>
         <div class="bstats">
@@ -1928,6 +2067,13 @@ $('bst-wave').addEventListener('input', renderBestiary);
 //  Home base
 // ============================================================
 function refreshLobby() {
+  const gi = Galaxy.info();
+  $('lobby-galaxy').textContent = `Galaxy ${gi.n} · ${gi.name}`;
+  $('lobby-galaxy').style.color = gi.tint || 'var(--friend)';
+  const novaReady = Galaxy.darkMatterFor() > 0;
+  $('menu-galaxy-btn').classList.toggle('ready', novaReady);
+  $('galaxy-tile-sub').textContent = novaReady ? `Supernova ready · +◆${Galaxy.darkMatterFor()}`
+    : (save.galaxyBest || 0) >= 1 ? `Supernova at wave ${Galaxy.PRESTIGE_MIN} · best ${save.galaxyBest}` : 'Constellations & new galaxies';
   const sk = skin();
   $('lobby-planet-name').textContent = sk.name;
   $('lobby-perk').textContent = sk.perk;
@@ -1938,7 +2084,7 @@ function refreshLobby() {
   $('lobby-daily').classList.toggle('ready', ready);
 }
 
-const OVERLAYS = ['menu', 'pause', 'gameover', 'observatory', 'draft', 'howto', 'welcome', 'missions', 'bestiary', 'settings'];
+const OVERLAYS = ['menu', 'pause', 'gameover', 'observatory', 'draft', 'howto', 'welcome', 'missions', 'bestiary', 'settings', 'galaxy'];
 function show(id) {
   for (const o of OVERLAYS) $(o).classList.toggle('hidden', o !== id);
   if (id === 'menu') {
@@ -1947,11 +2093,12 @@ function show(id) {
   }
   if (id === 'observatory') setObsTab(obsTab);
   if (id === 'missions') Progress.render();
+  if (id === 'galaxy') Galaxy.render();
   if (id === 'menu') refreshLobby();
   if (id === 'bestiary') { const s = $('bst-wave'); s.max = Math.max(30, save.bestWave + 10); if (!s.dataset.touched) s.value = Math.max(1, save.bestWave); renderBestiary(); }
   if (id === 'menu' || id === 'gameover') Progress.refreshBadge();
   if (id === 'pause') { renderMutList($('pause-muts')); Sound.muffle(true); }
-  if (id === 'menu' || id === 'observatory' || id === 'missions' || id === 'bestiary' || id === 'settings' || (id === 'howto' && !(run && !run.over))) {
+  if (id === 'menu' || id === 'observatory' || id === 'missions' || id === 'bestiary' || id === 'settings' || id === 'galaxy' || (id === 'howto' && !(run && !run.over))) {
     Sound.music('menu');
     Sound.muffle(false, 0.8);
   }
@@ -1991,7 +2138,7 @@ document.querySelectorAll('[data-mtab]').forEach(b => { b.onclick = () => Progre
 $('reroll-btn').onclick = () => {
   if (!run || run.rerolls <= 0) return;
   run.rerolls--;
-  draftOptions = rollMutations(3);
+  draftOptions = rollMutations(Galaxy.has('fourth') ? 4 : 3);
   renderDraft();
   Sound.play('reroll');
 };
@@ -2048,6 +2195,14 @@ document.querySelectorAll('.vol-slider').forEach(s => {
 });
 refreshVolumeSliders();
 $('menu-settings-btn').onclick = () => show('settings');
+$('menu-galaxy-btn').onclick = () => show('galaxy');
+$('galaxy-close').onclick = () => { buildBackground(); show('menu'); };
+$('auto-buy').onclick = () => {
+  save.settings.autoBuy = !save.settings.autoBuy;
+  $('auto-buy').classList.toggle('active', !!save.settings.autoBuy);
+  persist();
+};
+$('auto-buy').classList.toggle('active', !!save.settings.autoBuy);
 $('settings-close').onclick = () => show('menu');
 function refreshSoundToggles() {
   document.querySelectorAll('.snd-toggle').forEach(b => b.classList.toggle('off', !save.settings[b.dataset.snd]));
@@ -2110,7 +2265,11 @@ function frame(now) {
   render(now);
   renderMenuPlanet(now);
   uiTimer -= dt;
-  if (uiTimer <= 0) { uiTimer = 0.1; refreshHud(); refreshUpgradeCards(); }
+  if (uiTimer <= 0) {
+    uiTimer = 0.1;
+    if (run && !paused && !run.over && Galaxy.has('autoBuy') && save.settings.autoBuy) autoBuyStep();
+    refreshHud(); refreshUpgradeCards();
+  }
   if (toastTimer > 0) { toastTimer -= dt; if (toastTimer <= 0) $('toast').classList.remove('show'); }
   // Heartbeat so offline time is measured even if the app is killed without a "hidden" event
   if (now - lastHeartbeat > 5000) { lastHeartbeat = now; markSeen(); }
@@ -2121,6 +2280,10 @@ let lastHeartbeat = 0;
 buildUpgradeCards();
 equipSkin(save.skin);
 Ads.setNoAds(save.noAds);
+if (!save.galaxy) save.galaxy = 1;
+if (save.galaxyBest === undefined) save.galaxyBest = save.bestWave || 0;
+if (save.darkMatter === undefined) save.darkMatter = 0;
+if (!save.cons) save.cons = {};
 Progress.ensureDaily();
 Progress.sync('wave', save.bestWave);
 Progress.sync('skins', save.skins.length);

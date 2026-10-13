@@ -123,6 +123,16 @@ Each planet has a subtle **face-less personality** through animation: breathing 
 
 ---
 
+## Galaxies & Constellations (long-term progression, as built)
+**Supernova (prestige):** from wave 25 in the current galaxy the planet can go supernova. Stardust and Observatory reset; planets, achievements, missions and Constellations stay. Rewards **Dark Matter (◆)** = (best wave − 15)^1.6 / 4 × 1.3^(galaxy − 1).
+- Every ◆ ever earned gives +2% damage and health permanently ("dark power"), so each supernova is an instant power spike.
+- Each galaxy is +12% enemy health, has its own background color, a twist, and introduces a **new enemy**:
+  Frozen Reach (comets ×2, Sentinel: shielded vs core shots) · Ember Expanse (early Molten, Blinker: teleports) · Void Rift (early Wraiths, Hive: bursts into Swarmers) · Deep Space I, II… (all twists).
+
+**Constellations** (spent with ◆): endless power nodes (×1.25 damage, ×1.25 health, +25% Stardust), Warp Drive (skip early waves, max half your best in the galaxy), and one-time unlocks that add *new mechanics*: Auto-Buy, Auto-Pulse, Head Start, Wave Shield, Fourth Card, Star moons, and three new draftable mutations (Dark Harvest, Echo Pulse, Twin Core).
+
+**Bot simulation (7.7 h):** best wave per galaxy 30 → 29 → 38 → 46 → 48 → 47+ on the first G6 run; supernova rewards ◆19 → 22 → 63 → 133 → 192. No wall: every galaxy goes further and pays more.
+
 ## Monetization (fair, player-friendly)
 - **Rewarded ads:** double Stardust after a run, one free revive per run, free extra mutation reroll.
 - **Remove ads + 2× speed:** one-time purchase.
