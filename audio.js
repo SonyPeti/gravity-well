@@ -48,7 +48,7 @@ const Sound = (() => {
   const buffers = {};
   const lastPlay = {};
   const active = {};
-  const settings = { sfx: true, music: true };
+  const settings = { sfx: true, music: true, sfxVol: 1, musicVol: 1 };
 
   // ---------- Setup (must happen inside a user gesture on mobile) ----------
   function init() {
@@ -221,8 +221,10 @@ const Sound = (() => {
   function applySettings() {
     if (!ctx) return;
     const now = ctx.currentTime;
-    sfxBus.gain.setTargetAtTime(settings.sfx ? 1 : 0, now, 0.05);
-    musicBus.gain.setTargetAtTime(settings.music ? 0.55 : 0, now, 0.1);
+    // Squared so the slider feels even to the ear (loudness is logarithmic)
+    const sv = settings.sfxVol ?? 1, mv = settings.musicVol ?? 1;
+    sfxBus.gain.setTargetAtTime(settings.sfx ? sv * sv : 0, now, 0.05);
+    musicBus.gain.setTargetAtTime(settings.music ? 0.55 * mv * mv : 0, now, 0.1);
   }
 
   // Hard mute (e.g. while an ad plays), independent of the player's settings

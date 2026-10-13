@@ -1916,7 +1916,7 @@ function refreshLobby() {
   $('lobby-daily').classList.toggle('ready', ready);
 }
 
-const OVERLAYS = ['menu', 'pause', 'gameover', 'observatory', 'draft', 'howto', 'welcome', 'missions', 'bestiary'];
+const OVERLAYS = ['menu', 'pause', 'gameover', 'observatory', 'draft', 'howto', 'welcome', 'missions', 'bestiary', 'settings'];
 function show(id) {
   for (const o of OVERLAYS) $(o).classList.toggle('hidden', o !== id);
   if (id === 'menu') {
@@ -1929,7 +1929,7 @@ function show(id) {
   if (id === 'bestiary') { const s = $('bst-wave'); s.max = Math.max(30, save.bestWave + 10); if (!s.dataset.touched) s.value = Math.max(1, save.bestWave); renderBestiary(); }
   if (id === 'menu' || id === 'gameover') Progress.refreshBadge();
   if (id === 'pause') { renderMutList($('pause-muts')); Sound.muffle(true); }
-  if (id === 'menu' || id === 'observatory' || id === 'missions' || id === 'bestiary' || (id === 'howto' && !(run && !run.over))) {
+  if (id === 'menu' || id === 'observatory' || id === 'missions' || id === 'bestiary' || id === 'settings' || (id === 'howto' && !(run && !run.over))) {
     Sound.music('menu');
     Sound.muffle(false, 0.8);
   }
@@ -2000,6 +2000,33 @@ document.addEventListener('pointerdown', ev => {
 
 if (!save.settings) save.settings = { sfx: true, music: true };
 if (save.settings.vibe === undefined) save.settings.vibe = true;
+// Volumes (0..1). Older saves used on/off switches: carry "off" over as volume 0
+for (const [k, flag] of [['musicVol', 'music'], ['sfxVol', 'sfx']]) {
+  if (save.settings[k] === undefined) save.settings[k] = save.settings[flag] === false ? 0 : 1;
+  save.settings[flag] = true;
+}
+function refreshVolumeSliders() {
+  document.querySelectorAll('.vol-slider').forEach(s => {
+    const v = Math.round(save.settings[s.dataset.vol] * 100);
+    s.value = v;
+    s.parentElement.querySelector('.vol-val').textContent = v ? v + '%' : 'Off';
+  });
+}
+let volSaveTimer = null;
+document.querySelectorAll('.vol-slider').forEach(s => {
+  s.addEventListener('input', () => {
+    save.settings[s.dataset.vol] = Number(s.value) / 100;
+    Sound.configure(save.settings);
+    refreshVolumeSliders(); // keeps the pause and settings sliders in sync
+    clearTimeout(volSaveTimer);
+    volSaveTimer = setTimeout(persist, 300);
+  });
+  // Let the player hear the new sound level when they let go
+  s.addEventListener('change', () => { if (s.dataset.vol === 'sfxVol') Sound.play('buy'); });
+});
+refreshVolumeSliders();
+$('menu-settings-btn').onclick = () => show('settings');
+$('settings-close').onclick = () => show('menu');
 function refreshSoundToggles() {
   document.querySelectorAll('.snd-toggle').forEach(b => b.classList.toggle('off', !save.settings[b.dataset.snd]));
   Sound.configure(save.settings);

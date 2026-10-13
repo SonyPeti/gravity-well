@@ -536,6 +536,12 @@ button { font: inherit; color: inherit; cursor: pointer; }
 #danger.on { animation: dangerPulse 1s ease-in-out infinite; }
 @keyframes dangerPulse { 0%, 100% { opacity: .35; } 50% { opacity: .9; } }
 
+/* ---------- Volume sliders ---------- */
+.vol-row { display: flex; align-items: center; gap: 10px; margin: 12px 0; text-align: left; }
+.vol-row span { flex: 0 0 82px; font-weight: 600; font-size: 15px; }
+.vol-row input { flex: 1; accent-color: var(--friend); height: 28px; }
+.vol-row .vol-val { flex: 0 0 40px; text-align: right; font-variant-numeric: tabular-nums; color: var(--friend); }
+
 /* ---------- Sound toggles ---------- */
 .sound-row { display: flex; gap: 8px; justify-content: center; margin-top: 12px; }
 .snd-toggle.off { opacity: .45; text-decoration: line-through; }

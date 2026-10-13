@@ -82,10 +82,19 @@
   </div>
   <button id="play-btn" class="btn primary play-big">PLAY</button>
   <div class="sound-row">
-    <button class="chip snd-toggle" data-snd="music">🎵</button>
-    <button class="chip snd-toggle" data-snd="sfx">🔊</button>
-    <button class="chip snd-toggle" data-snd="vibe">📳</button>
+    <button id="menu-settings-btn" class="chip">⚙️ Settings</button>
     <button id="menu-howto-btn" class="chip">❔ How to play</button>
+  </div>
+</div>
+
+<!-- Settings -->
+<div id="settings" class="overlay hidden">
+  <div class="modal">
+    <h2>⚙️ Settings</h2>
+    <div class="vol-row"><span>🎵 Music</span><input type="range" class="vol-slider" data-vol="musicVol" min="0" max="100"><b class="vol-val"></b></div>
+    <div class="vol-row"><span>🔊 Sound</span><input type="range" class="vol-slider" data-vol="sfxVol" min="0" max="100"><b class="vol-val"></b></div>
+    <div class="sound-row"><button class="chip snd-toggle" data-snd="vibe">📳 Vibrate</button></div>
+    <button id="settings-close" class="btn primary">Done</button>
   </div>
 </div>
 
@@ -108,11 +117,9 @@
   <div class="modal">
     <h2>Paused</h2>
     <div id="pause-muts" class="mut-list"></div>
-    <div class="sound-row">
-      <button class="chip snd-toggle" data-snd="music">🎵 Music</button>
-      <button class="chip snd-toggle" data-snd="sfx">🔊 Sound</button>
-      <button class="chip snd-toggle" data-snd="vibe">📳 Vibrate</button>
-    </div>
+    <div class="vol-row"><span>🎵 Music</span><input type="range" class="vol-slider" data-vol="musicVol" min="0" max="100"><b class="vol-val"></b></div>
+    <div class="vol-row"><span>🔊 Sound</span><input type="range" class="vol-slider" data-vol="sfxVol" min="0" max="100"><b class="vol-val"></b></div>
+    <div class="sound-row"><button class="chip snd-toggle" data-snd="vibe">📳 Vibrate</button></div>
     <button id="resume-btn" class="btn primary">Resume</button>
     <button id="quit-btn" class="btn danger">End run</button>
   </div>
