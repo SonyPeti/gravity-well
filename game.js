@@ -327,7 +327,9 @@ const PACE = {
   countBase: 9, countPer: 2.6,   // a swarm of weaker enemies feels better than a trickle
   speed: 1.5,        // enemy speed multiplier
   spawnMargin: 6,    // how far off-screen enemies appear
+  scoutStop: [105, 125], // how far from the planet scouts stop to shoot
   bossEscort: 0.6,   // share of the normal enemy count that comes along with a boss
+  coreTargetsShooters: true,    // while nothing touches the planet, the core shoots ranged enemies first
 };
 // Boss waves bring a smaller escort so the boss itself is the fight
 const waveCount = w => Math.min(100, Math.round((PACE.countBase + PACE.countPer * w) * (BOSS_WAVE(w) ? PACE.bossEscort : 1)));
@@ -632,7 +634,7 @@ function spawnEnemy(typeId, x, y, hpMult = 1) {
     atk: 0.3, shoot: rand(1, 2), flash: 0, rot: Math.random() * TAU, spinV: rand(-1.5, 1.5),
     slow: 0, burn: 0, burnDps: 0, kb: 0, dead: false,
     verts: Array.from({ length: 9 }, () => rand(0.75, 1.1)),
-    stopAt: typeId === 'scout' ? rand(105, 125) : typeId === 'mother' ? 105 : typeId === 'queen' ? 128 : PLANET_R + t.r,
+    stopAt: typeId === 'scout' ? rand(PACE.scoutStop[0], PACE.scoutStop[1]) : typeId === 'mother' ? 105 : typeId === 'queen' ? 128 : PLANET_R + t.r,
     hist: [], segs: [],
   };
   if (Challenge.has('swift')) e.speed *= 1.3;
@@ -751,18 +753,24 @@ function hitPlanet(dmg, big) {
   if (run.hp <= 0) gameOver();
 }
 
-function nearestEnemy(x, y, range) {
+// preferRanged: shooters within range win over closer enemies (used by the core)
+function nearestEnemy(x, y, range, preferRanged = false) {
   let best = null, bd = Infinity;
   for (const e of run.enemies) {
     if (e.dead) continue;
-    const d = Math.hypot(e.x - x, e.y - y) - e.r;
-    if (d < bd && d <= range) { bd = d; best = e; }
+    let d = Math.hypot(e.x - x, e.y - y) - e.r;
+    if (d > range) continue;
+    if (preferRanged && e.ranged) d -= 1000;
+    if (d < bd) { bd = d; best = e; }
   }
   return best;
 }
 
+// True while a melee enemy is at the planet, chewing on it
+const planetUnderAttack = () => run.enemies.some(e => !e.dead && !e.ranged && Math.hypot(e.x, e.y) <= e.stopAt + 2);
+
 function fireFrom(x, y, range, dmgMult) {
-  const target = nearestEnemy(x, y, range);
+  const target = nearestEnemy(x, y, range, PACE.coreTargetsShooters && !planetUnderAttack());
   if (!target) return false;
   const crit = Math.random() < stat('critChance');
   const dmg = stat('coreDamage') * dmgMult * (crit ? stat('critMult') : 1);
