@@ -384,6 +384,48 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 .ad-close:disabled { opacity: .6; }
 
+/* ---------- Menu buttons & badges ---------- */
+.btn-row.three .btn {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  font-size: 13px; padding: 10px 4px;
+}
+.btn-row.three .bi { font-size: 20px; line-height: 1; }
+.btn-row .btn { position: relative; }
+.claim-badge {
+  position: absolute; top: -6px; right: -6px; min-width: 22px; height: 22px; padding: 0 6px;
+  border-radius: 11px; background: var(--enemy); color: #fff; font-size: 12px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; box-shadow: 0 0 10px rgba(255,61,127,.6);
+  animation: badgePop 1.6s ease-in-out infinite;
+}
+@keyframes badgePop { 50% { transform: scale(1.12); } }
+
+/* ---------- Missions & achievements ---------- */
+.small { font-size: 12px; }
+#missions-list { display: flex; flex-direction: column; gap: 8px; text-align: left; }
+#missions-list > .muted { margin: 0 0 2px; text-align: center; }
+.mission, .chest, .achv {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+  background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+}
+.mission.ready, .chest.ready, .achv.done { border-color: rgba(255,211,74,.6); box-shadow: 0 0 14px rgba(255,211,74,.18); }
+.mission.claimed, .chest.claimed, .achv.claimed { opacity: .55; }
+.minfo { flex: 1; min-width: 0; }
+.mtext { font-weight: 600; font-size: 14px; }
+.chest-ico { font-size: 28px; }
+.achv > img { width: 40px; height: 40px; object-fit: contain; flex: none; }
+.achv.locked > img { filter: grayscale(.85) brightness(.6); }
+.mission button, .chest button, .achv button {
+  min-width: 68px; padding: 8px 10px; border-radius: 12px; border: 0; flex: none;
+  background: linear-gradient(180deg, #FFE27A, #F5B82E); color: #3a2400; font-weight: 700;
+}
+.mission button:disabled, .chest button:disabled, .achv button:disabled { background: var(--card-hi); color: var(--muted); }
+.pbar { position: relative; height: 14px; margin-top: 5px; border-radius: 7px; background: rgba(0,0,0,.4); overflow: hidden; }
+.pbar > div { height: 100%; background: linear-gradient(90deg, #1fb5a8, var(--friend)); }
+.pbar span {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 700; text-shadow: 0 1px 2px #000; font-variant-numeric: tabular-nums;
+}
+
 /* ---------- Sound toggles ---------- */
 .sound-row { display: flex; gap: 8px; justify-content: center; margin-top: 12px; }
 .snd-toggle.off { opacity: .45; text-decoration: line-through; }

@@ -5,7 +5,7 @@ const path = require('path');
 const crypto = require('crypto');
 
 const ROOT = path.join(__dirname, '..');
-const FILES = ['index.html', 'style.css', 'audio.js', 'ads.js', 'game.js', 'manifest.json', 'icon.svg'];
+const FILES = ['index.html', 'style.css', 'audio.js', 'ads.js', 'progress.js', 'game.js', 'manifest.json', 'icon.svg'];
 const ASSET_EXT = /\.(png|jpg|svg|wav|mp3)$/;
 
 function walk(dir) {

@@ -375,7 +375,10 @@ function newRun() {
     shake: 0, hurt: 0, wobble: 0, over: false, drafting: false,
   };
   run.hp = stat('maxHp');
+  run.flawless = 0;
+  run.tookDamage = false;
   for (let i = 0; i < metaVal('sMoons'); i++) addOrbital('rock', 0, 0, false);
+  Progress.track('runs');
   paused = false;
   refreshUpgradeCards();
   refreshMutStrip();
@@ -401,6 +404,7 @@ function addOrbital(type, x, y, arriving) {
     o.y = Math.sin(a) * ringRadius(ring);
   }
   run.orbitals.push(o);
+  Progress.max('maxOrbit', run.orbitals.length);
   return o;
 }
 
@@ -411,7 +415,11 @@ function tryCapture(e) {
   if (isSkin('void') && Math.random() < 0.25) type = 'void';
   if (Math.random() < 0.01 * (mc('goldenTouch') ? 10 : 1)) type = 'gold';
   const o = addOrbital(type, e.x, e.y, true);
-  if (o) Sound.play('capture', { x: e.x });
+  if (o) {
+    Sound.play('capture', { x: e.x });
+    Progress.track('captures');
+    Progress.track('cap_' + type);
+  }
   if (o && !save.tips.capture) {
     save.tips.capture = true;
     persist();
@@ -484,6 +492,8 @@ function killEnemy(e) {
   e.dead = true;
   run.kills++;
   const t = ENEMY_TYPES[e.type];
+  Progress.track('kills');
+  if (e.boss) { Progress.track('bosses'); Progress.track(e.type === 'worm' ? 'worm' : 'mother'); }
   const full = run.orbitals.length >= stat('slots');
   const reward = (2 + 0.3 * run.wave) * e.energy * stat('energyKill') * (mc('overflow') && full ? 2 : 1);
   run.energy += reward;
@@ -512,6 +522,7 @@ function killEnemy(e) {
 }
 
 function hitPlanet(dmg, big) {
+  run.tookDamage = true;
   Sound.play('planet_hit', { vol: big ? 1.4 : 1 });
   run.hp -= dmg;
   run.hurt = 0.15;
@@ -545,6 +556,7 @@ function usePulse() {
   if (!run || run.over || paused || run.pulseCd > 0) return;
   run.pulseCd = PULSE_CD * (mc('chainPulse') ? 0.5 : 1);
   run.pulseT = 0.9;
+  Progress.track('pulses');
   const dmg = stat('coreDamage') * 2;
   for (const e of run.enemies) {
     const d = Math.hypot(e.x, e.y);
@@ -594,7 +606,11 @@ function endWave() {
   if (bonus >= 1) floatText(0, -PLANET_R - 20, `+⚡${fmt(bonus)}`, '#7DFF8A', 11);
   if (w > save.bestWave) save.bestWave = w;
   persist();
+  run.flawless = run.tookDamage ? 0 : run.flawless + 1;
+  run.tookDamage = false;
+  Progress.max('flawless', run.flawless);
   run.wave++;
+  Progress.max('wave', run.wave);
   run.waveTime = 0;
   run.spawned = 0;
   run.spawnAcc = 0;
@@ -650,6 +666,9 @@ function renderDraft() {
 function pickMutation(m) {
   const oldMax = stat('maxHp');
   run.mut[m.id] = mc(m.id) + 1;
+  Progress.track('mutations');
+  if (m.rarity === 'legendary') Progress.track('legendary');
+  Progress.max('runMutations', Object.values(run.mut).reduce((a, b) => a + b, 0));
   if (m.id === 'thickAtmo') run.hp = stat('maxHp');
   else run.hp = Math.min(run.hp * stat('maxHp') / oldMax, stat('maxHp'));
   run.drafting = false;
@@ -1421,6 +1440,7 @@ function buyUpgrade(u) {
   const oldMax = stat('maxHp');
   run.energy -= plan.cost;
   run.lv[u.id] = (run.lv[u.id] || 0) + plan.n;
+  Progress.track('upgrades', plan.n);
   if (u.id === 'maxHp') run.hp += stat('maxHp') - oldMax;
   if (u.id === 'durability') {
     const d = stat('durability');
@@ -1575,6 +1595,7 @@ function renderSkins() {
         if (!waveOk || save.stardust < s.cost) return;
         save.stardust -= s.cost;
         save.skins.push(s.id);
+        Progress.max('skins', save.skins.length);
       }
       Sound.play(owned ? 'equip' : 'fanfare');
       equipSkin(s.id);
@@ -1690,7 +1711,7 @@ $('welcome-double').onclick = async () => {
   }, 30);
 };
 
-const OVERLAYS = ['menu', 'pause', 'gameover', 'observatory', 'draft', 'howto', 'welcome'];
+const OVERLAYS = ['menu', 'pause', 'gameover', 'observatory', 'draft', 'howto', 'welcome', 'missions'];
 function show(id) {
   for (const o of OVERLAYS) $(o).classList.toggle('hidden', o !== id);
   if (id === 'menu') {
@@ -1698,8 +1719,10 @@ function show(id) {
     $('menu-stardust').innerHTML = ICON_S + fmt(save.stardust);
   }
   if (id === 'observatory') setObsTab(obsTab);
+  if (id === 'missions') Progress.render();
+  if (id === 'menu' || id === 'gameover') Progress.refreshBadge();
   if (id === 'pause') { renderMutList($('pause-muts')); Sound.muffle(true); }
-  if (id === 'menu' || id === 'observatory' || (id === 'howto' && !(run && !run.over))) {
+  if (id === 'menu' || id === 'observatory' || id === 'missions' || (id === 'howto' && !(run && !run.over))) {
     Sound.music('menu');
     Sound.muffle(false, 0.8);
   }
@@ -1728,6 +1751,10 @@ $('retry-btn').onclick = startRun;
 $('menu-obs-btn').onclick = () => { obsTab = 'upgrades'; show('observatory'); };
 $('go-obs-btn').onclick = () => { obsTab = 'upgrades'; show('observatory'); };
 $('obs-close').onclick = () => show('menu');
+$('menu-missions-btn').onclick = () => show('missions');
+$('go-missions-btn').onclick = () => show('missions');
+$('missions-close').onclick = () => show('menu');
+document.querySelectorAll('[data-mtab]').forEach(b => { b.onclick = () => Progress.setTab(b.dataset.mtab); });
 $('reroll-btn').onclick = () => {
   if (!run || run.rerolls <= 0) return;
   run.rerolls--;
@@ -1832,6 +1859,9 @@ let lastHeartbeat = 0;
 buildUpgradeCards();
 equipSkin(save.skin);
 Ads.setNoAds(save.noAds);
+Progress.ensureDaily();
+Progress.sync('wave', save.bestWave);
+Progress.sync('skins', save.skins.length);
 resize();
 show('menu');
 checkOffline();

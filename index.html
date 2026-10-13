@@ -68,9 +68,10 @@
       <div><span class="label">Stardust</span><b id="menu-stardust" class="stardust"><img class="cur" src="assets/icon_stardust.png" alt="✦">0</b></div>
     </div>
     <button id="play-btn" class="btn primary">Play</button>
-    <div class="btn-row">
-      <button id="menu-obs-btn" class="btn">🔭 Observatory</button>
-      <button id="menu-planets-btn" class="btn">🪐 Planets</button>
+    <div class="btn-row three">
+      <button id="menu-obs-btn" class="btn"><span class="bi">🔭</span>Observatory</button>
+      <button id="menu-planets-btn" class="btn"><span class="bi">🪐</span>Planets</button>
+      <button id="menu-missions-btn" class="btn"><span class="bi">🎯</span>Missions<span class="claim-badge hidden">0</span></button>
     </div>
     <div class="sound-row">
       <button class="chip snd-toggle" data-snd="music">🎵 Music</button>
@@ -116,7 +117,10 @@
     </div>
     <p id="go-best" class="muted"></p>
     <button id="retry-btn" class="btn primary">Play again</button>
-    <button id="go-obs-btn" class="btn">🔭 Observatory</button>
+    <div class="btn-row">
+      <button id="go-obs-btn" class="btn">🔭 Observatory</button>
+      <button id="go-missions-btn" class="btn">🎯 Missions<span class="claim-badge hidden">0</span></button>
+    </div>
   </div>
 </div>
 
@@ -137,6 +141,20 @@
     <div id="obs-list"></div>
     <div id="skin-list" class="hidden"></div>
     <button id="obs-close" class="btn">Back</button>
+  </div>
+</div>
+
+<!-- Missions & achievements -->
+<div id="missions" class="overlay hidden">
+  <div class="modal wide">
+    <h2>🎯 Missions</h2>
+    <p class="muted">Stardust: <b id="missions-stardust" class="stardust">0</b></p>
+    <nav class="seg">
+      <button class="seg-btn active" data-mtab="daily">Daily</button>
+      <button class="seg-btn" data-mtab="achievements">Achievements</button>
+    </nav>
+    <div id="missions-list"></div>
+    <button id="missions-close" class="btn">Back</button>
   </div>
 </div>
 
@@ -181,6 +199,7 @@
 
 <script src="audio.js"></script>
 <script src="ads.js"></script>
+<script src="progress.js"></script>
 <script src="game.js"></script>
 </body>
 </html>
