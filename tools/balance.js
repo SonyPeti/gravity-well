@@ -72,3 +72,92 @@ export function compare(n = 6) {
   console.table(out);
   return out;
 }
+
+// ---------- Long-term progression (Observatory → Supernova → Constellations) ----------
+// Plays from a fresh save until `hours` of game time or `maxGalaxy`, then restores the real save.
+// Results land in window.__prog (poll it; the page stays responsive between runs):
+//   import('./tools/balance.js?' + Date.now()).then(m => m.progression({ hours: 8 }))
+const OBS_WEIGHT = { sCore: 1, sHull: 1, sOrbit: 1.2, sEnergy: 1.1, sStart: 1.4, sStardust: 1.3, sMoons: 1.5,
+  sCapture: 1.6, sReroll: 1.5, sRelay: 99 };
+const CONS_ORDER = ['shield', 'headStart', 'echoPulse', 'fourth', 'starMoon', 'twinCore', 'darkHarvest']; // unlocks worth having
+const STALL_RUNS = 4; // go supernova after this many runs without a new galaxy best (once wave 25 is reached)
+
+function spendStardust() {
+  for (;;) {
+    let best = null, bs = Infinity;
+    for (const m of META) {
+      const lv = save.meta[m.id] || 0;
+      if (m.max !== undefined && lv >= m.max) continue;
+      const c = m.cost(lv), score = c * (OBS_WEIGHT[m.id] || 2);
+      if (c <= save.stardust && score < bs) { bs = score; best = m; }
+    }
+    if (!best) return;
+    save.stardust -= best.cost(save.meta[best.id] || 0);
+    save.meta[best.id] = (save.meta[best.id] || 0) + 1;
+  }
+}
+
+function spendDarkMatter() {
+  const NODES = Galaxy.NODES;
+  const lv = id => (save.cons && save.cons[id]) || 0;
+  const cost = id => NODES.find(n => n.id === id).cost(lv(id));
+  for (;;) {
+    // Alternate the cheap power nodes with the next useful unlock, cheapest first
+    const options = ['dmCore', 'dmHull', 'dmDust', 'warp', ...CONS_ORDER.filter(id => !lv(id))]
+      .filter(id => { const n = NODES.find(x => x.id === id); return n && (n.max === undefined || lv(id) < n.max); });
+    let best = null, bc = Infinity;
+    for (const id of options) { const c = cost(id) * (id === 'dmDust' ? 1.5 : 1); if (c < bc) { bc = c; best = id; } }
+    if (!best || cost(best) > (save.darkMatter || 0)) return;
+    save.darkMatter -= cost(best);
+    if (!save.cons) save.cons = {};
+    save.cons[best] = lv(best) + 1;
+  }
+}
+
+export async function progression({ hours = 8, maxGalaxy = 7 } = {}) {
+  const backup = localStorage.getItem(SAVE_KEY);
+  const realPersist = window.persist;
+  window.persist = () => {}; // no storage writes while simulating
+  Sound.play = () => {};
+  const keep = { tips: save.tips, settings: save.settings };
+  for (const k of Object.keys(save)) delete save[k];
+  Object.assign(save, defaultSave(), keep, { galaxy: 1, galaxyBest: 0, darkMatter: 0, dmEarned: 0, cons: {} });
+
+  const out = window.__prog = { done: false, galaxies: [], log: [] };
+  let gStats = null, playSec = 0, stall = 0;
+  const newGalaxy = () => { gStats = { galaxy: save.galaxy, best: 0, runs: 0, hours: 0, dm: 0 }; out.galaxies.push(gStats); stall = 0; };
+  newGalaxy();
+  try {
+    while (playSec < hours * 3600 && save.galaxy <= maxGalaxy) {
+      await new Promise(r => setTimeout(r, 0));
+      const before = save.galaxyBest || 0;
+      simRun({ pulse: 'smart', maxWave: 200, maxMinutes: 60 });
+      if (!run.over) gameOver(); // hit the time cap: count it as a finished run
+      playSec += run.time;
+      gStats.runs++;
+      gStats.hours = +(gStats.hours + run.time / 3600).toFixed(2);
+      gStats.best = save.galaxyBest || 0;
+      stall = save.galaxyBest > before ? 0 : stall + 1;
+      spendStardust();
+      if (save.galaxyBest >= 25 && stall >= STALL_RUNS) {
+        const gain = Galaxy.darkMatterFor();
+        gStats.dm = gain;
+        out.log.push(`G${save.galaxy}: supernova at best ${save.galaxyBest} after ${gStats.runs} runs, +${gain} DM`);
+        save.darkMatter = (save.darkMatter || 0) + gain;
+        save.dmEarned = (save.dmEarned || 0) + gain;
+        save.galaxy++;
+        save.galaxyBest = 0;
+        save.stardust = 0;
+        save.meta = {};
+        spendDarkMatter();
+        newGalaxy();
+      }
+      out.hours = +(playSec / 3600).toFixed(2);
+    }
+  } finally {
+    window.persist = realPersist;
+    if (backup === null) localStorage.removeItem(SAVE_KEY); else localStorage.setItem(SAVE_KEY, backup);
+    out.done = true;
+  }
+  return out; // reload the page afterwards: the in-memory save is still the simulated one
+}

@@ -131,7 +131,7 @@ Each planet has a subtle **face-less personality** through animation: breathing 
 
 **Constellations** (spent with ◆): endless power nodes (×1.25 damage, ×1.25 health, +25% Stardust), Warp Drive (skip early waves, max half your best in the galaxy), and one-time unlocks that add *new mechanics*: Auto-Buy, Auto-Pulse, Head Start, Wave Shield, Fourth Card, Star moons, and three new draftable mutations (Dark Harvest, Echo Pulse, Twin Core).
 
-**Bot simulation (7.7 h):** best wave per galaxy 30 → 29 → 38 → 46 → 48 → 47+ on the first G6 run; supernova rewards ◆19 → 22 → 63 → 133 → 192. No wall: every galaxy goes further and pays more.
+**Bot simulation (8 h, 3 runs, after the 2026-10-14 pulse rebalance):** best wave per galaxy ≈ 30 → 32 → 39 → 44 → 48, galaxy 6 reached in about 1 of 3 runs; supernova rewards ◆17-19 → 30-39 → 43-82 → 120 → 182. Same curve as before the rebalance (old build with the same bot: 29 → 34 → 39 → 42 → 47 → 50), about half a galaxy slower over 8 h. No wall: every galaxy goes further and pays more. Re-run with `tools/balance.js` → `progression()`.
 
 ## Monetization (fair, player-friendly)
 - **Rewarded ads:** double Stardust after a run, one free revive per run, free extra mutation reroll.
