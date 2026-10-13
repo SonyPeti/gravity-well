@@ -649,6 +649,32 @@ button { font: inherit; color: inherit; cursor: pointer; }
 @keyframes coachIn { from { opacity: 0; transform: translateY(6px) scale(.96); } }
 .coach-target { position: relative; z-index: 79; box-shadow: 0 0 0 3px #FFE27A, 0 0 22px rgba(255,211,74,.7) !important; }
 
+/* ---------- Run summary ---------- */
+.go-summary { margin: 2px 0 6px; }
+.sum-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.sum-chip {
+  position: relative; display: flex; flex-direction: column; gap: 1px; padding: 6px 4px 7px;
+  border-radius: 10px; background: var(--card); border: 1px solid var(--border);
+}
+.sum-chip span { font-size: 11px; color: var(--muted); }
+.sum-chip b { font-size: 16px; font-variant-numeric: tabular-nums; }
+.sum-chip.record { border-color: var(--stardust); box-shadow: 0 0 12px rgba(255,211,74,.3); }
+.sum-chip.record b { color: var(--stardust); }
+.sum-chip i {
+  position: absolute; top: -7px; left: 50%; transform: translateX(-50%); white-space: nowrap;
+  font-style: normal; font-size: 8px; font-weight: 700; letter-spacing: .08em;
+  padding: 1px 5px; border-radius: 6px; background: var(--stardust); color: #3a2400;
+}
+.dmg-bar { display: flex; height: 10px; margin: 10px 0 4px; border-radius: 5px; overflow: hidden; background: rgba(0,0,0,.4); }
+.dmg-bar div { height: 100%; }
+.dmg-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 10px; font-size: 11px; color: #c4c8e6; }
+.dmg-legend i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: 0; }
+.sum-muts { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px; margin-top: 8px; }
+.sum-muts img { width: 26px; height: 26px; }
+.sum-muts sub { font-size: 9px; color: var(--muted); margin: 0 3px 0 -4px; }
+#gameover .hero-img { width: 110px; margin-bottom: 0; }
+#gameover .stats-row { margin: 8px 0; }
+
 /* ---------- Volume sliders ---------- */
 .vol-row { display: flex; align-items: center; gap: 10px; margin: 12px 0; text-align: left; }
 .vol-row span { flex: 0 0 82px; font-weight: 600; font-size: 15px; }

@@ -486,6 +486,8 @@ function newRun() {
     shake: 0, hurt: 0, wobble: 0, over: false, drafting: false,
   };
   run.hp = stat('maxHp');
+  run.dmg = {};
+  run.captures = 0; run.elitesKilled = 0; run.bestCombo = 0; run.upgradesBought = 0;
   const warp = Galaxy.warpWave();
   if (warp > 1) {
     run.wave = warp;
@@ -544,6 +546,7 @@ function tryCapture(e) {
   if (o) {
     Sound.play('capture', { x: e.x });
     Progress.track('captures');
+    run.captures++;
     Progress.track('cap_' + type);
   }
   if (o) coach('capture', 'Captured! Destroyed enemies can join your orbit and fight for you.', '#orbit-info');
@@ -554,7 +557,7 @@ function shatter(o) {
   Sound.play('shatter', { x: o.x });
   if (mc('shrapnel')) {
     const dmg = stat('orbitDamage') * 3;
-    for (const e of run.enemies) if (!e.dead && Math.hypot(e.x - o.x, e.y - o.y) < 32 + e.r) damageEnemy(e, dmg, false);
+    for (const e of run.enemies) if (!e.dead && Math.hypot(e.x - o.x, e.y - o.y) < 32 + e.r) damageEnemy(e, dmg, false, false, 'orbit');
     run.waves.push({ x: o.x, y: o.y, r: 4, max: 32, t: 0.25, color: '#FF8A2A' });
   }
   o.dead = true;
@@ -642,10 +645,12 @@ function hitTest(e, x, y, r) {
 }
 
 // ---------- Combat ----------
-function damageEnemy(e, amount, crit, quiet) {
+// src: where the damage came from, for the run summary ('core' | 'orbit' | 'pulse' | 'burn' | 'other')
+function damageEnemy(e, amount, crit, quiet, src = 'other') {
   if (e.dead) return;
   const q = run.queen;
   if (q && q !== e && !q.dead && Math.hypot(e.x - q.x, e.y - q.y) < QUEEN_AURA) amount *= 0.4;
+  run.dmg[src] = (run.dmg[src] || 0) + Math.min(amount, Math.max(0, e.hp)); // don't count overkill
   e.hp -= amount;
   if (!quiet) e.flash = 0.07;
   if (crit && run.texts.length < 30) {
@@ -663,6 +668,7 @@ function killEnemy(e) {
   if (e === run.queen) run.queen = null;
   if (e.elite) {
     Progress.track('elites');
+    run.elitesKilled++;
     if (e.elite === 'explosive') {
       run.waves.push({ x: e.x, y: e.y, r: 4, max: 40, t: 0.35, color: '#FF8A2A' });
       Sound.play('kill_big', { x: e.x, vol: 0.7 });
@@ -775,7 +781,7 @@ function pulseBlast() {
     const d = Math.hypot(e.x, e.y);
     if (d < 230) {
       e.kb += (e.boss ? 60 : 170) * (1 - d / 280);
-      damageEnemy(e, dmg, false);
+      damageEnemy(e, dmg, false, false, 'pulse');
     }
   }
   run.eBullets.length = 0;
@@ -832,6 +838,7 @@ const comboMult = () => 1 + Math.min(run.combo || 0, 50) * 0.005; // up to +25% 
 function comboHit() {
   run.combo = (run.combo || 0) + 1;
   run.comboT = COMBO_WINDOW;
+  if (run.combo > run.bestCombo) run.bestCombo = run.combo;
   if (run.combo >= 5) {
     const el = $('combo');
     el.classList.remove('hidden', 'bump');
@@ -1044,6 +1051,7 @@ function gameOver() {
   burst(0, 0, '#3FF2E0', 60, false);
   for (const o of run.orbitals) burst(o.x, o.y, ORBITALS[o.type].trail, 4, false);
   run.orbitals = [];
+  const newRecord = renderRunSummary(!ch);
   $('go-wave').textContent = reached;
   $('go-kills').textContent = fmt(run.kills);
   $('go-stardust').innerHTML = '+' + ICON_S + fmt(run.stardust);
@@ -1054,8 +1062,51 @@ function gameOver() {
   setTimeout(() => {
     show('gameover');
     if (!ch) coach('observatory', 'Spend Stardust in the Observatory to become permanently stronger.', '#go-obs-btn');
-    if ((!ch && reached > prevBest) || (ch && ch.gained.tiers.length)) Sound.play('fanfare');
+    if ((!ch && reached > prevBest) || (ch && ch.gained.tiers.length) || newRecord) Sound.play('fanfare');
   }, 700);
+}
+
+// ---------- Run summary ----------
+const DMG_PARTS = [
+  ['core', 'Core', '#3FF2E0'], ['orbit', 'Moons', '#B06CFF'], ['pulse', 'Pulse', '#E9ECFF'],
+  ['burn', 'Fire', '#FF8A2A'], ['other', 'Other', '#FFD34A'],
+];
+function renderRunSummary(trackRecords) {
+  const r = run;
+  const total = DMG_PARTS.reduce((s, [k]) => s + (r.dmg[k] || 0), 0);
+  // Personal records (normal runs only; challenges have their own rules)
+  if (!save.records) save.records = {};
+  const rec = save.records, isNew = {};
+  const check = (key, v) => { if (trackRecords && v > 0 && v > (rec[key] || 0)) { isNew[key] = rec[key] !== undefined; rec[key] = v; } };
+  check('kills', r.kills); check('captures', r.captures); check('combo', r.bestCombo); check('damage', total); check('elites', r.elitesKilled);
+  const mins = Math.floor(r.time / 60), secs = Math.floor(r.time % 60);
+  const chip = (icon, label, value, key) =>
+    `<div class="sum-chip ${isNew[key] ? 'record' : ''}"><span>${icon} ${label}</span><b>${value}</b>${isNew[key] ? '<i>NEW RECORD</i>' : ''}</div>`;
+  let html = `<div class="sum-grid">
+    ${chip('⏱', 'Time', `${mins}:${String(secs).padStart(2, '0')}`)}
+    ${chip('🪐', 'Captured', fmt(r.captures), 'captures')}
+    ${chip('🔥', 'Best combo', '×' + r.bestCombo, 'combo')}
+    ${chip('👑', 'Elites', fmt(r.elitesKilled), 'elites')}
+    ${chip('⬆️', 'Upgrades', fmt(r.upgradesBought))}
+    ${chip('💥', 'Damage', fmt(total), 'damage')}
+  </div>`;
+  if (total > 0) {
+    html += '<div class="dmg-bar">';
+    for (const [k, , col] of DMG_PARTS) {
+      const p = (r.dmg[k] || 0) / total * 100;
+      if (p >= 0.5) html += `<div style="width:${p}%;background:${col}"></div>`;
+    }
+    html += '</div><div class="dmg-legend">';
+    for (const [k, label, col] of DMG_PARTS) {
+      const p = (r.dmg[k] || 0) / total * 100;
+      if (p >= 0.5) html += `<span><i style="background:${col}"></i>${label} ${Math.round(p)}%</span>`;
+    }
+    html += '</div>';
+  }
+  const muts = MUTATIONS.filter(m => mc(m.id));
+  if (muts.length) html += `<div class="sum-muts">${muts.map(m => mutIcon(m) + (mc(m.id) > 1 ? `<sub>×${mc(m.id)}</sub>` : '')).join('')}</div>`;
+  $('go-summary').innerHTML = html;
+  return Object.values(isNew).some(Boolean); // caller plays one fanfare for any new record
 }
 
 // ============================================================
@@ -1169,7 +1220,7 @@ function update(dt) {
         if (o.shoot <= 0) {
           const t = nearestEnemy(o.x, o.y, 90);
           if (t) {
-            damageEnemy(t, od * 0.8, false);
+            damageEnemy(t, od * 0.8, false, false, 'orbit');
             r.lasers.push({ x1: o.x, y1: o.y, x2: t.x, y2: t.y, t: 0.12 });
             Sound.play('drone', { x: o.x });
             o.shoot = 1.4;
@@ -1180,7 +1231,7 @@ function update(dt) {
       let hit = false;
       for (const e of r.enemies) {
         if (e.dead || !hitTest(e, o.x, o.y, def.r)) continue;
-        damageEnemy(e, od * def.dmg * (e.ghost ? 0.5 : 1), false);
+        damageEnemy(e, od * def.dmg * (e.ghost ? 0.5 : 1), false, false, 'orbit');
         if (def.slow || mc('frostbite')) e.slow = 1.5;
         if (def.burn || mc('kindling')) { e.burn = 3; e.burnDps = Math.max(e.burnDps, od * 0.4); }
         if (def.gold) { const g = (1 + 0.3 * r.wave) * 0.5; r.energy += g; }
@@ -1207,7 +1258,7 @@ function update(dt) {
     e.slow = Math.max(0, e.slow - dt);
     if (e.burn > 0) {
       e.burn -= dt;
-      damageEnemy(e, e.burnDps * dt, false, true);
+      damageEnemy(e, e.burnDps * dt, false, true, 'burn');
       if (Math.random() < dt * 8) r.particles.push({ x: e.x + rand(-e.r, e.r), y: e.y + rand(-e.r, e.r), vx: 0, vy: -20, life: 0.4, max: 0.4, color: '#FF8A2A', size: 2, suck: false, delay: 0 });
       if (e.dead) continue;
     }
@@ -1289,7 +1340,7 @@ function update(dt) {
         const e = b.target;
         if (isSkin('ember')) { e.burn = 2; e.burnDps = Math.max(e.burnDps, stat('coreDamage') * 0.3); }
         if (isSkin('glacier')) e.slow = Math.max(e.slow, 1);
-        damageEnemy(e, b.dmg * (ENEMY_TYPES[e.type].shielded ? 0.35 : 1), b.crit);
+        damageEnemy(e, b.dmg * (ENEMY_TYPES[e.type].shielded ? 0.35 : 1), b.crit, false, 'core');
         if (!e.dead) Sound.play('hit', { x: e.x });
         b.life = 0;
         continue;
@@ -1953,6 +2004,7 @@ function buyUpgrade(u) {
   run.energy -= plan.cost;
   run.lv[u.id] = (run.lv[u.id] || 0) + plan.n;
   Progress.track('upgrades', plan.n);
+  run.upgradesBought += plan.n;
   if (u.id === 'maxHp') run.hp += stat('maxHp') - oldMax;
   if (u.id === 'durability') {
     const d = stat('durability');
