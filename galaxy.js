@@ -32,7 +32,7 @@ const Galaxy = (() => {
     { id: 'autoBuy',   kind: 'unlock', icon: 'upg_slots',      name: 'Auto-Buy',        text: 'A toggle that buys the cheapest upgrade for you',   cost: () => 15 },
     { id: 'autoPulse', kind: 'unlock', icon: 'ui_pulse',       name: 'Auto-Pulse',      text: 'Gravity Pulse fires by itself when enemies get close', cost: () => 20 },
     { id: 'darkHarvest', kind: 'unlock', icon: 'icon_stardust', name: 'Mutation: Dark Harvest', text: 'Adds it to the draft: kills can drop Stardust',  cost: () => 15 },
-    { id: 'echoPulse', kind: 'unlock', icon: 'mut_chainPulse', name: 'Mutation: Echo Pulse',   text: 'Adds it to the draft: every Pulse fires twice',    cost: () => 25 },
+    { id: 'echoPulse', kind: 'unlock', icon: 'ui_pulse',       name: 'Mutation: Echo Pulse',   text: 'Adds it to the draft: every Pulse fires a second, half-power blast',    cost: () => 25 },
     { id: 'headStart', kind: 'unlock', icon: 'mut_binaryStar', name: 'Head Start',      text: 'Draft a free mutation at the start of every run',    cost: () => 30 },
     { id: 'starMoon',  kind: 'unlock', icon: 'orb_gold',       name: 'Star Moons',      text: '8% of captures become Star moons that heal you',     cost: () => 30, tint: '#3FF2E0' },
     { id: 'shield',    kind: 'unlock', icon: 'upg_durability', name: 'Wave Shield',     text: 'A shield worth 15% health at the start of every wave', cost: () => 35 },

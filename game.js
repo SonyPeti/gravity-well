@@ -172,13 +172,13 @@ const MUTATIONS = [
   { id: 'hungry',     rarity: 'epic',   icon: '🕳️', name: 'Hungry Gravity',    desc: 'Enemies are pulled in faster, orbitals deal +50% damage' },
   { id: 'tidalLock',  rarity: 'epic',   icon: '🔒', name: 'Tidal Lock',        desc: 'Orbitals stop spinning but hit 3x harder' },
   { id: 'glassCannon',rarity: 'epic',   icon: '🔮', name: 'Glass Cannon',      desc: 'Double all damage, half max health' },
-  { id: 'chainPulse', rarity: 'epic',   icon: '🌀', name: 'Chain Pulse',       desc: 'Gravity Pulse recharges twice as fast' },
+  { id: 'chainPulse', rarity: 'epic',   icon: '🌀', name: 'Chain Pulse',       desc: 'Gravity Pulse recharges 35% faster' },
   { id: 'blackHole',  rarity: 'legendary', icon: '⚫', name: 'Black Hole Heart', desc: 'Every 75 kills, a black hole devours nearby enemies' },
   { id: 'outerHalo',  rarity: 'legendary', icon: '🪐', name: 'Outer Halo',       desc: 'A 4th orbit ring and +6 orbit slots' },
   { id: 'goldenTouch',rarity: 'legendary', icon: '👑', name: 'Golden Touch',     desc: 'Golden moons are 10x more common' },
   // Unlocked through Constellations (requires = node id)
   { id: 'darkHarvest',rarity: 'rare',   icon: '✦', name: 'Dark Harvest', desc: 'Kills have a 3% chance to drop Stardust', requires: 'darkHarvest', img: 'icon_stardust' },
-  { id: 'echoPulse',  rarity: 'epic',   icon: '🌀', name: 'Echo Pulse',   desc: 'Every Gravity Pulse fires a second time', requires: 'echoPulse', img: 'ui_pulse' },
+  { id: 'echoPulse',  rarity: 'epic',   icon: '🔁', name: 'Echo Pulse',   desc: 'Every Gravity Pulse fires a second, half-power blast', requires: 'echoPulse', img: 'ui_pulse' },
   { id: 'twinCore',   rarity: 'legendary', icon: '⚡', name: 'Twin Core', desc: 'Your core fires two shots at once', requires: 'twinCore', img: 'upg_fireRate' },
 ];
 const MUT = Object.fromEntries(MUTATIONS.map(m => [m.id, m]));
@@ -243,6 +243,8 @@ const RING_SPEED = [1.3, 1.0, 0.8, 0.65];
 const ringCount = () => (mc('outerHalo') ? 4 : 3);
 const ringRadius = i => RING_BASE[i] * (mc('wideOrbit') ? 1.2 : 1) * (isSkin('gasgiant') ? 1.1 : 1);
 const PULSE_CD = 20;
+const pulseCdMax = () => PULSE_CD * (mc('chainPulse') ? 0.65 : 1);
+const PULSE_RESIST = 6; // seconds after a pulse hit during which the next one pushes an enemy much less
 
 const ORBITALS = {
   rock:  { dmg: 1,   r: 4.5, trail: '#3FF2E0' },
@@ -325,13 +327,16 @@ const PACE = {
   countBase: 9, countPer: 2.6,   // a swarm of weaker enemies feels better than a trickle
   speed: 1.5,        // enemy speed multiplier
   spawnMargin: 6,    // how far off-screen enemies appear
+  bossEscort: 0.6,   // share of the normal enemy count that comes along with a boss
 };
-const waveCount = w => Math.min(100, Math.round(PACE.countBase + PACE.countPer * w));
+// Boss waves bring a smaller escort so the boss itself is the fight
+const waveCount = w => Math.min(100, Math.round((PACE.countBase + PACE.countPer * w) * (BOSS_WAVE(w) ? PACE.bossEscort : 1)));
 // Difficulty knobs, all in one place
 const BALANCE = {
-  hpBase: 6.6, hpGrowth: 1.20, hpCurve: 1.0012,   // enemy health per wave (curve gets steeper late)
+  hpBase: 5, hpGrowth: 1.18, hpCurve: 1.0012,   // enemy health per wave (curve gets steeper late)
   dmgBase: 3, dmgGrowth: 1.12, dmgCurve: 1.001,
   clearBase: 4, clearPer: 1.5,   // energy for clearing a wave (before fast/flawless bonuses)
+  pulseDmg: 1,   // Gravity Pulse damage (× core damage) to every enemy in range
 };
 const enemyHp = w => BALANCE.hpBase * Math.pow(BALANCE.hpGrowth, w - 1) * Math.pow(BALANCE.hpCurve, (w - 1) * (w - 1)) * Galaxy.enemyHpMult();
 const enemyDmg = w => BALANCE.dmgBase * Math.pow(BALANCE.dmgGrowth, w - 1) * Math.pow(BALANCE.dmgCurve, (w - 1) * (w - 1));
@@ -364,6 +369,8 @@ function setGfx(level) {
 
 function resize() {
   const r = stage.getBoundingClientRect();
+  // A hidden/collapsed stage measures 0x0: keep the last size, or SCALE becomes 0 and spawns land at NaN
+  if (!r.width || !r.height) return;
   DPR = Math.min(GFX_DPR[GFX], window.devicePixelRatio || 1);
   W = r.width; H = r.height;
   canvas.width = Math.round(W * DPR);
@@ -767,24 +774,29 @@ function fireFrom(x, y, range, dmgMult) {
 
 function usePulse() {
   if (!run || run.over || paused || run.pulseCd > 0 || Challenge.has('noPulse')) return;
-  run.pulseCd = PULSE_CD * (mc('chainPulse') ? 0.5 : 1);
+  run.pulseCd = pulseCdMax();
   Progress.track('pulses');
   vibrate(35);
   if (mc('echoPulse')) run.echoAt = run.time + 0.6;
   pulseBlast();
 }
 
-function pulseBlast() {
+// echo: the weaker second blast from Echo Pulse (half power, no bullet clear)
+function pulseBlast(echo = false) {
   run.pulseT = 0.9;
-  const dmg = stat('coreDamage') * 2;
+  const power = echo ? 0.5 : 1;
+  const dmg = stat('coreDamage') * BALANCE.pulseDmg * power;
   for (const e of run.enemies) {
     const d = Math.hypot(e.x, e.y);
     if (d < 230) {
-      e.kb += (e.boss ? 60 : 170) * (1 - d / 280);
+      // Back-to-back pulses can't keep enemies pinned at the edge forever
+      const resisted = !echo && e.pulsedAt !== undefined && run.time - e.pulsedAt < PULSE_RESIST;
+      e.kb += (e.boss ? 60 : 170) * (1 - d / 280) * power * (resisted ? 0.35 : 1);
+      if (!echo) e.pulsedAt = run.time;
       damageEnemy(e, dmg, false, false, 'pulse');
     }
   }
-  run.eBullets.length = 0;
+  if (!echo) run.eBullets.length = 0;
   run.waves.push({ x: 0, y: 0, r: PLANET_R, max: 230, t: 0.55, color: '#3FF2E0' });
   Sound.play('pulse');
   run.shake = Math.min(6, run.shake + 2);
@@ -1146,7 +1158,7 @@ function update(dt) {
     // Planet
     r.hp = Math.min(stat('maxHp'), r.hp + stat('regen') * dt);
     r.pulseCd = Math.max(0, r.pulseCd - dt);
-    if (r.echoAt && r.time >= r.echoAt) { r.echoAt = 0; pulseBlast(); }
+    if (r.echoAt && r.time >= r.echoAt) { r.echoAt = 0; pulseBlast(true); }
     if (r.wave <= 4 && r.pulseCd <= 0 && !save.tips.h_pulse && !Challenge.has('noPulse')
         && r.enemies.some(e => Math.hypot(e.x, e.y) < 70)) coach('pulse', 'Tap your planet (or PULSE) to blast enemies back!', '#pulse-btn');
     // Constellation: Auto-Pulse
@@ -1842,7 +1854,7 @@ function render(now) {
     }
     drawPlanet(0, 0, R, tt, r.hurt);
     // Pulse ready ring
-    const cdMax = PULSE_CD * (mc('chainPulse') ? 0.5 : 1);
+    const cdMax = pulseCdMax();
     const p = 1 - r.pulseCd / cdMax;
     ctx.strokeStyle = p >= 1 ? `rgba(63,242,224,${0.5 + 0.3 * Math.sin(tt * 5)})` : 'rgba(63,242,224,0.35)';
     ctx.lineWidth = 2;
@@ -2067,7 +2079,7 @@ function refreshHud() {
   setText($('hp-text'), `${fmt(Math.max(0, run.hp))} / ${fmt(maxHp)}`);
   setWidth($('wave-fill'), Math.min(100, run.waveTime / PACE.waveLen * 100));
   setText($('orbit-count'), `${run.orbitals.length}/${stat('slots')}`);
-  const cdMax = PULSE_CD * (mc('chainPulse') ? 0.5 : 1);
+  const cdMax = pulseCdMax();
   const p = 1 - run.pulseCd / cdMax;
   const pb = $('pulse-btn');
   const pv = p.toFixed(3);
