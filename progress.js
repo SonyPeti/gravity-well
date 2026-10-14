@@ -139,11 +139,15 @@ const Progress = (() => {
   }
 
   // ---------- Claiming ----------
-  function claimable() {
+  // which: 'daily' | 'achievements' | undefined (both)
+  function claimable(which) {
     const d = ensureDaily();
-    let n = d.list.filter(m => m.progress >= m.target && !m.claimed).length;
-    if (d.list.every(m => m.claimed) && !d.chestClaimed) n++;
-    n += ACHIEVEMENTS.filter(x => ach()[x.id] === 'done').length;
+    let n = 0;
+    if (which !== 'achievements') {
+      n += d.list.filter(m => m.progress >= m.target && !m.claimed).length;
+      if (d.list.every(m => m.claimed) && !d.chestClaimed) n++;
+    }
+    if (which !== 'daily') n += ACHIEVEMENTS.filter(x => ach()[x.id] === 'done').length;
     return n;
   }
 
@@ -246,10 +250,19 @@ const Progress = (() => {
     el.querySelectorAll('[data-ach]').forEach(b => { b.onclick = () => claimAchievement(b.dataset.ach); });
   }
 
+  // Opening the screen: jump to the tab that has something to claim
+  function open() {
+    if (!claimable(tab) && claimable(tab === 'daily' ? 'achievements' : 'daily')) tab = tab === 'daily' ? 'achievements' : 'daily';
+    render();
+  }
+
   function render() {
     const el = document.getElementById('missions-list');
     if (!el) return;
-    document.querySelectorAll('[data-mtab]').forEach(b => b.classList.toggle('active', b.dataset.mtab === tab));
+    document.querySelectorAll('[data-mtab]').forEach(b => {
+      b.classList.toggle('active', b.dataset.mtab === tab);
+      b.classList.toggle('dot', b.dataset.mtab !== tab && claimable(b.dataset.mtab) > 0);
+    });
     const st = document.getElementById('missions-stardust');
     if (st) st.innerHTML = S() + fmt(save.stardust);
     if (tab === 'daily') renderDaily(el); else renderAchievements(el);
@@ -266,5 +279,5 @@ const Progress = (() => {
     });
   }
 
-  return { track, max, sync, ensureDaily, render, setTab, refreshBadge, claimable, TEMPLATES, ACHIEVEMENTS };
+  return { track, max, sync, ensureDaily, render, open, setTab, refreshBadge, claimable, TEMPLATES, ACHIEVEMENTS };
 })();

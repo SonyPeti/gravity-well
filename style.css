@@ -123,14 +123,25 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 #tabs { display: flex; }
 .tab {
-  flex: 1; padding: 11px 4px; background: none; border: 0;
+  flex: 1; padding: 9px 4px; background: none; border: 0;
   border-bottom: 2px solid transparent; color: var(--muted); font-weight: 600; font-size: 15px;
 }
 .tab.active { color: var(--text); border-bottom-color: var(--friend); }
+/* "Something here is affordable" dot on upgrade tabs and mission tabs */
+.tab, .seg-btn { position: relative; }
+.tab.dot::after, .seg-btn.dot::after {
+  content: ''; position: absolute; top: 7px; right: calc(50% - 46px); width: 7px; height: 7px; border-radius: 50%;
+  background: var(--energy); box-shadow: 0 0 6px var(--energy);
+}
+.seg-btn.dot::after { background: var(--enemy); box-shadow: 0 0 6px var(--enemy); right: 10px; top: 50%; margin-top: -4px; }
 
 #buy-mode { display: flex; align-items: center; gap: 6px; padding: 8px 12px 0; }
 #buy-mode .label { margin-right: 2px; }
-#mut-strip { margin-left: auto; display: flex; gap: 2px; font-size: 16px; overflow: hidden; max-width: 40%; }
+#mut-strip {
+  margin-left: auto; display: flex; align-items: center; gap: 2px; font-size: 16px; overflow: hidden; max-width: 42%; cursor: pointer;
+  -webkit-mask-image: linear-gradient(90deg, #000 85%, transparent); mask-image: linear-gradient(90deg, #000 85%, transparent);
+}
+#mut-strip sub { font-size: 9px; font-weight: 700; color: var(--muted); margin: 0 2px 0 -5px; align-self: flex-end; }
 .chip {
   padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border);
   background: rgba(18,22,46,.85); font-size: 13px; font-weight: 600;
@@ -152,9 +163,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .card .top { display: flex; justify-content: space-between; align-items: baseline; gap: 4px; }
 .card .name { font-weight: 600; font-size: 14px; }
 .card .lvl { font-size: 11px; color: var(--muted); white-space: nowrap; }
-.card .value { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.card .bottom { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; margin-top: 2px; }
+.card .value { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .card .value b { color: var(--text); font-weight: 600; }
-.card .cost { font-size: 15px; font-weight: 700; color: var(--energy); font-variant-numeric: tabular-nums; }
+.card .cost { font-size: 15px; font-weight: 700; color: var(--energy); font-variant-numeric: tabular-nums; white-space: nowrap; flex: none; }
 .card.afford { border-color: rgba(125,255,138,.35); background: var(--card-hi); }
 .card.cant { opacity: .55; }
 .card.cant .cost { color: var(--muted); }
@@ -169,6 +181,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
   -webkit-backdrop-filter: blur(5px); backdrop-filter: blur(5px);
 }
 .overlay.hidden { display: none; }
+/* Low graphics: skip the costly background blur */
+.gfx-low .overlay { -webkit-backdrop-filter: none; backdrop-filter: none; background: rgba(4,6,16,.9); }
 .modal {
   width: 100%; max-width: 360px; max-height: 92dvh; overflow-y: auto;
   background: var(--panel); border: 1px solid var(--border);
@@ -225,6 +239,16 @@ button { font: inherit; color: inherit; cursor: pointer; }
 
 .mut-list { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin: 4px 0 8px; }
 .mut-list .mut-pill { padding: 4px 10px; border-radius: 999px; font-size: 12px; background: var(--card); border: 1px solid var(--c, var(--border)); }
+.mut-list .mut-pill.sel { background: color-mix(in srgb, var(--c) 25%, var(--card)); }
+.mut-list .mut-desc { flex-basis: 100%; margin: 2px 0 0; min-height: 16px; color: #c4c8e6; }
+
+/* Screens that pop up mid-action ignore taps for a moment (see show()) */
+.overlay.guard * { pointer-events: none !important; }
+
+/* Long screens: the Back/Done button stays on screen instead of sitting at the very bottom */
+.modal > .btn:last-child:not(.danger) { position: sticky; bottom: 0; z-index: 2; box-shadow: 0 -10px 16px 4px var(--panel-solid); }
+.modal > .btn.primary:last-child { box-shadow: 0 -10px 16px 4px var(--panel-solid), 0 0 20px rgba(63,242,224,.35); }
+.modal > .btn:last-child:not(.primary):not(.danger) { background: var(--card-hi); }
 
 /* ---------- Observatory ---------- */
 #obs-list { display: flex; flex-direction: column; gap: 8px; text-align: left; }
@@ -696,8 +720,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .howto-step { display: flex; align-items: center; gap: 12px; text-align: left; margin: 10px 0; }
 .howto-step b { font-size: 16px; }
 .howto-step p { margin: 2px 0 0; font-size: 13px; color: #c4c8e6; line-height: 1.3; }
-.howto-art { flex: 0 0 92px; height: 72px; display: flex; align-items: center; justify-content: center; gap: 2px; }
-.howto-art img { width: 40px; height: 40px; object-fit: contain; }
+.howto-art { flex: 0 0 92px; width: 92px; height: 72px; display: flex; align-items: center; justify-content: center; gap: 2px; }
+.howto-art img { width: 36px; height: 36px; object-fit: contain; }
 .howto-art img.round { width: 80px; height: 72px; object-fit: cover; border-radius: 12px; }
 .capture-art span { color: var(--friend); font-size: 18px; }
 .mini-cards i { display: block; width: 22px; height: 32px; border-radius: 5px; border: 2px solid; background: var(--card); margin: 0 1px; }

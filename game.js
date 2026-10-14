@@ -352,6 +352,7 @@ let ctx = canvas.getContext('2d'); // swapped temporarily to draw the menu plane
 const mainCtx = ctx;
 const stage = $('stage');
 let W = 0, H = 0, DPR = 1, SCALE = 1;
+let stillFrames = 0; // frames drawn since the scene stopped moving (see frame())
 const bgCanvas = document.createElement('canvas');
 const twinkles = [];
 
@@ -365,6 +366,7 @@ function setGfx(level) {
   level = Math.max(0, Math.min(2, level));
   if (level === GFX) return;
   GFX = level;
+  document.body.classList.toggle('gfx-low', GFX === 0);
   resize();
   if (typeof refreshGfxUi === 'function') refreshGfxUi();
 }
@@ -378,6 +380,7 @@ function resize() {
   canvas.width = Math.round(W * DPR);
   canvas.height = Math.round(H * DPR);
   SCALE = Math.min(W, H) / 300;
+  stillFrames = 0; // resizing clears the canvas: draw it again
   buildBackground();
 }
 window.addEventListener('resize', resize);
@@ -884,10 +887,11 @@ function clearCoach() {
   coachQueue.length = 0;
   if (coachDone) coachDone(true);
 }
-function coach(id, text, target) {
+// side: 'above' | 'below' to force where the bubble goes (default: below targets near the top, above the rest)
+function coach(id, text, target, side) {
   if (!save.tips) save.tips = {};
   if (save.tips['h_' + id] || coachQueue.some(q => q.id === id)) return;
-  coachQueue.push({ id, text, target });
+  coachQueue.push({ id, text, target, side });
   if (!coachShowing) nextCoach();
 }
 function nextCoach() {
@@ -902,7 +906,7 @@ function nextCoach() {
   b.querySelector('.coach-text').textContent = q.text;
   const r = el.getBoundingClientRect();
   b.classList.remove('hidden', 'above', 'below');
-  const below = r.top < innerHeight * 0.45;
+  const below = q.side ? q.side === 'below' : r.top < innerHeight * 0.45;
   b.classList.add(below ? 'below' : 'above');
   const bw = Math.min(280, innerWidth - 24);
   b.style.width = bw + 'px';
@@ -1054,6 +1058,7 @@ function pickMutation(m) {
 function gameOver() {
   if (run.over) return;
   run.over = true;
+  run.overAt = run.time;
   run.hp = 0;
   paused = true;
   const reached = run.wave;
@@ -1081,7 +1086,7 @@ function gameOver() {
   Sound.muffle(true, 1.5);
   setTimeout(() => {
     show('gameover');
-    if (!ch) coach('observatory', 'Spend Stardust in the Observatory to become permanently stronger.', '#go-obs-btn');
+    if (!ch) coach('observatory', 'Spend Stardust in the Observatory to become permanently stronger.', '#go-obs-btn', 'below');
     if ((!ch && reached > prevBest) || (ch && ch.gained.tiers.length) || newRecord) Sound.play('fanfare');
   }, 700);
 }
@@ -1971,14 +1976,31 @@ function buildUpgradeCards() {
     el.className = 'card' + (u.tab === activeTab ? '' : ' hidden');
     el.innerHTML = `
       <div class="top"><span class="name"><img class="upg-ico" src="assets/upg_${u.id}.png" alt="">${u.name}</span><span class="lvl"></span></div>
-      <div class="value"></div>
-      <div class="cost"></div>`;
-    el.addEventListener('click', () => buyUpgrade(u));
+      <div class="bottom"><div class="value"></div><div class="cost"></div></div>`;
+    // Tap to buy once; press and hold to keep buying
+    let holdT = null, held = false;
+    const stopHold = () => { clearTimeout(holdT); holdT = null; };
+    const repeat = delay => {
+      holdT = setTimeout(() => {
+        const before = run && run.lv[u.id];
+        buyUpgrade(u, true);
+        if (!run || run.lv[u.id] === before) { stopHold(); return; } // out of energy or maxed
+        held = true;
+        vibrate(8);
+        repeat(Math.max(50, delay * 0.75)); // speeds up the longer you hold
+      }, delay);
+    };
+    el.addEventListener('pointerdown', () => { held = false; stopHold(); repeat(350); });
+    for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) el.addEventListener(ev, stopHold);
+    el.addEventListener('click', () => { if (held) { held = false; return; } buyUpgrade(u); });
+    el.addEventListener('contextmenu', e => e.preventDefault()); // long-press menu on Android
     wrap.appendChild(el);
     cards[u.id] = { el, lvl: el.querySelector('.lvl'), value: el.querySelector('.value'), cost: el.querySelector('.cost') };
   }
 }
 
+// Whole-number prices, so cards never show "7.8"
+const upCost = (u, l) => Math.ceil(u.cost(l));
 function purchasePlan(u) {
   const lv = run.lv[u.id] || 0;
   const max = u.max ?? Infinity;
@@ -1987,16 +2009,16 @@ function purchasePlan(u) {
   if (buyMode === 'max') {
     let n = 0, cost = 0;
     while (n < room && n < 500) {
-      const c = u.cost(lv + n);
+      const c = upCost(u, lv + n);
       if (cost + c > run.energy) break;
       cost += c; n++;
     }
-    if (n === 0) return { n: 1, cost: u.cost(lv), maxed: false };
+    if (n === 0) return { n: 1, cost: upCost(u, lv), maxed: false };
     return { n, cost, maxed: false };
   }
   const n = Math.min(Number(buyMode), room);
   let cost = 0;
-  for (let i = 0; i < n; i++) cost += u.cost(lv + i);
+  for (let i = 0; i < n; i++) cost += upCost(u, lv + i);
   return { n, cost, maxed: false };
 }
 
@@ -2012,10 +2034,10 @@ function autoBuyStep() {
   if (best) { autoBuying = true; buyUpgrade(best); autoBuying = false; }
   buyMode = mode;
 }
-function buyUpgrade(u) {
+function buyUpgrade(u, holding = false) {
   if (!run || run.over || paused) return;
   const plan = purchasePlan(u);
-  if (plan.maxed || plan.cost > run.energy) { Sound.play('denied'); return; }
+  if (plan.maxed || plan.cost > run.energy) { if (!holding) Sound.play('denied'); return; }
   // Rapid purchases climb in pitch — a little "combo" reward for tapping
   const now = performance.now();
   buyStreak = now - lastBuyAt < 700 ? Math.min(buyStreak + 1, 10) : 0;
@@ -2039,12 +2061,19 @@ function setText(el, v) { v = String(v); if (el._t !== v) { el._t = v; el.textCo
 function setHTML(el, v) { if (el._h !== v) { el._h = v; el.innerHTML = v; } }
 function setWidth(el, pct) { const v = pct.toFixed(1) + '%'; if (el._w !== v) { el._w = v; el.style.width = v; } }
 
+const tabEls = {};
+document.querySelectorAll('.tab').forEach(t => { tabEls[t.dataset.tab] = t; });
 function refreshUpgradeCards() {
   if (!run) return;
+  const canBuy = {};
   for (const u of UPGRADES) {
     const c = cards[u.id];
     c.el.classList.toggle('hidden', u.tab !== activeTab);
-    if (u.tab !== activeTab) continue;
+    if (u.tab !== activeTab) {
+      // A dot on the other tabs when something there is affordable
+      if (!canBuy[u.tab]) { const p = purchasePlan(u); canBuy[u.tab] = !p.maxed && p.cost <= run.energy; }
+      continue;
+    }
     const lv = run.lv[u.id] || 0;
     const plan = purchasePlan(u);
     const cur = stat(u.id);
@@ -2066,12 +2095,13 @@ function refreshUpgradeCards() {
     c.el.classList.toggle('cant', !afford && !plan.maxed);
     c.el.classList.toggle('maxed', plan.maxed);
   }
+  for (const id in tabEls) tabEls[id].classList.toggle('dot', id !== activeTab && !!canBuy[id]);
 }
 
 function refreshHud() {
   if (!run) return;
   setText($('hud-wave'), run.wave);
-  setHTML($('hud-energy'), ICON_E + fmt(run.energy));
+  setHTML($('hud-energy'), ICON_E + fmt(Math.floor(run.energy)));
   setHTML($('hud-stardust'), ICON_S + fmt(save.stardust));
   const maxHp = stat('maxHp');
   const frac = Math.max(0, run.hp) / maxHp;
@@ -2095,24 +2125,34 @@ function refreshHud() {
   pb.classList.toggle('ready', p >= 1);
 }
 
+// One icon per mutation; stacks get a small count
 function refreshMutStrip() {
   const icons = [];
-  for (const m of MUTATIONS) for (let i = 0; i < mc(m.id); i++) icons.push(mutIcon(m));
+  for (const m of MUTATIONS) { const n = mc(m.id); if (n) icons.push(mutIcon(m) + (n > 1 ? `<sub>${n}</sub>` : '')); }
   $('mut-strip').innerHTML = icons.join('');
 }
 
+// Pause screen: tap a mutation to read what it does
 function renderMutList(el) {
   el.innerHTML = '';
+  const info = document.createElement('p');
+  info.className = 'mut-desc small';
   for (const m of MUTATIONS) {
     const n = mc(m.id);
     if (!n) continue;
-    const pill = document.createElement('span');
+    const pill = document.createElement('button');
     pill.className = 'mut-pill';
     pill.style.setProperty('--c', `var(--${m.rarity})`);
     pill.innerHTML = `${mutIcon(m)} ${m.name}${n > 1 ? ' x' + n : ''}`;
+    pill.onclick = () => {
+      el.querySelectorAll('.mut-pill').forEach(p => p.classList.toggle('sel', p === pill));
+      info.textContent = m.desc;
+    };
     el.appendChild(pill);
   }
-  if (!el.children.length) el.innerHTML = '<span class="muted">No mutations yet</span>';
+  if (!el.children.length) { el.innerHTML = '<span class="muted">No mutations yet</span>'; return; }
+  info.textContent = 'Tap a mutation to see what it does';
+  el.appendChild(info);
 }
 
 // ============================================================
@@ -2158,7 +2198,7 @@ function renderObservatory() {
 let obsTab = 'upgrades';
 function setObsTab(tab) {
   obsTab = tab;
-  document.querySelectorAll('.seg-btn').forEach(b => b.classList.toggle('active', b.dataset.obs === tab));
+  document.querySelectorAll('[data-obs]').forEach(b => b.classList.toggle('active', b.dataset.obs === tab));
   $('obs-list').classList.toggle('hidden', tab !== 'upgrades');
   $('skin-list').classList.toggle('hidden', tab !== 'planets');
   if (tab === 'planets') renderSkins(); else renderObservatory();
@@ -2404,13 +2444,24 @@ function show(id) {
     $('menu-stardust').innerHTML = ICON_S + fmt(save.stardust);
   }
   if (id === 'observatory') setObsTab(obsTab);
-  if (id === 'missions') Progress.render();
+  if (id === 'missions') Progress.open();
+  if (id === 'settings') { refreshGfxUi(); refreshSaveNote(); }
+  // Screens that pop up mid-action ignore taps for a moment, so a tap meant for the game can't pick a card by accident
+  if (id === 'draft' || id === 'gameover') {
+    const el = $(id);
+    el.classList.add('guard');
+    clearTimeout(el._guard);
+    el._guard = setTimeout(() => el.classList.remove('guard'), 450);
+  }
+  // Scrolling screens open at the top
+  const modal = $(id).querySelector('.modal');
+  if (modal) modal.scrollTop = 0;
   if (id === 'galaxy') Galaxy.render();
   if (id === 'challenge') Challenge.render();
   if (id === 'menu') refreshLobby();
   if (id === 'bestiary') { const s = $('bst-wave'); s.max = Math.max(30, save.bestWave + 10); if (!s.dataset.touched) s.value = Math.max(1, save.bestWave); renderBestiary(); }
   if (id === 'menu' || id === 'gameover') Progress.refreshBadge();
-  if (id === 'pause') { renderMutList($('pause-muts')); Sound.muffle(true); }
+  if (id === 'pause') { renderMutList($('pause-muts')); disarmQuit(); Sound.muffle(true); }
   if (id === 'menu' || id === 'observatory' || id === 'missions' || id === 'bestiary' || id === 'settings' || id === 'galaxy' || id === 'challenge' || (id === 'howto' && !(run && !run.over))) {
     Sound.music('menu');
     Sound.muffle(false, 0.8);
@@ -2452,7 +2503,7 @@ $('howto-ok').onclick = () => {
 };
 $('menu-howto-btn').onclick = () => show('howto');
 $('menu-planets-btn').onclick = () => { obsTab = 'planets'; show('observatory'); };
-document.querySelectorAll('.seg-btn').forEach(b => { b.onclick = () => setObsTab(b.dataset.obs); });
+document.querySelectorAll('[data-obs]').forEach(b => { b.onclick = () => setObsTab(b.dataset.obs); });
 
 $('play-btn').onclick = startRun;
 $('retry-btn').onclick = () => (lastMode === 'challenge' ? startChallenge() : startRun());
@@ -2461,10 +2512,11 @@ $('go-obs-btn').onclick = () => { obsTab = 'upgrades'; show('observatory'); };
 $('obs-close').onclick = () => show('menu');
 $('menu-missions-btn').onclick = () => show('missions');
 $('go-missions-btn').onclick = () => show('missions');
+$('go-home-btn').onclick = () => show('menu');
 $('missions-close').onclick = () => show('menu');
 $('menu-bestiary-btn').onclick = () => show('bestiary');
 $('bst-close').onclick = () => show('menu');
-$('lobby-daily').onclick = () => { Progress.setTab('daily'); show('missions'); };
+$('lobby-daily').onclick = () => { show('missions'); Progress.setTab('daily'); };
 $('bst-wave').addEventListener('pointerdown', () => { $('bst-wave').dataset.touched = 1; });
 document.querySelectorAll('[data-mtab]').forEach(b => { b.onclick = () => Progress.setTab(b.dataset.mtab); });
 $('reroll-btn').onclick = () => {
@@ -2475,18 +2527,57 @@ $('reroll-btn').onclick = () => {
   Sound.play('reroll');
 };
 
-$('pause-btn').onclick = () => {
-  if (!run || run.over || run.drafting) return;
+function pauseRun() {
+  if (!run || run.over || run.drafting || paused) return;
   paused = true;
   show('pause');
+}
+function resumeRun() { paused = false; hideAll(); Sound.muffle(false); }
+$('pause-btn').onclick = pauseRun;
+$('mut-strip').onclick = pauseRun; // the pause screen explains each mutation
+$('resume-btn').onclick = resumeRun;
+// Ending a run takes two taps, so a stray tap can't throw it away
+let quitArmed = null;
+function disarmQuit() { clearTimeout(quitArmed); quitArmed = null; $('quit-btn').textContent = 'End run'; }
+$('quit-btn').onclick = () => {
+  if (!quitArmed) {
+    $('quit-btn').textContent = 'Tap again to end the run';
+    quitArmed = setTimeout(disarmQuit, 2500);
+    return;
+  }
+  disarmQuit();
+  hideAll(); paused = false; gameOver();
 };
-$('resume-btn').onclick = () => { paused = false; hideAll(); Sound.muffle(false); };
-$('quit-btn').onclick = () => { hideAll(); paused = false; gameOver(); };
 
+// Back (Android button, Esc key, or a tap outside a window): close the top screen
+const BACK_TO_MENU = ['observatory', 'missions', 'bestiary', 'settings', 'galaxy', 'challenge'];
+function goBack() {
+  const open = OVERLAYS.find(o => !$(o).classList.contains('hidden'));
+  if (open === 'pause') { resumeRun(); return true; }
+  if (BACK_TO_MENU.includes(open) || (open === 'howto' && save.tips.howto)) { show('menu'); return true; }
+  if (open === 'gameover') { show('menu'); return true; }
+  if (!open && run && !run.over) { pauseRun(); return true; }
+  return false; // menu, draft, welcome: nothing to go back to
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') goBack(); });
+for (const id of [...BACK_TO_MENU, 'pause']) {
+  $(id).addEventListener('click', e => { if (e.target === e.currentTarget) goBack(); });
+}
+// Android back button (Capacitor app only)
+const CapApp = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
+if (CapApp) CapApp.addListener('backButton', () => { if (!goBack()) CapApp.minimizeApp(); });
+
+// Game speed is remembered between runs
+gameSpeed = (save.settings && save.settings.speed) || 1;
+$('speed-btn').textContent = gameSpeed + 'x';
 $('speed-btn').onclick = () => {
   gameSpeed = gameSpeed >= 3 ? 1 : gameSpeed + 1;
   $('speed-btn').textContent = gameSpeed + 'x';
+  $('speed-btn').classList.toggle('active', gameSpeed > 1);
+  save.settings.speed = gameSpeed;
+  persist();
 };
+$('speed-btn').classList.toggle('active', gameSpeed > 1);
 $('pulse-btn').onclick = usePulse;
 
 // ---------- Audio: unlock on first touch, UI clicks, toggles ----------
@@ -2526,7 +2617,7 @@ document.querySelectorAll('.vol-slider').forEach(s => {
   s.addEventListener('change', () => { if (s.dataset.vol === 'sfxVol') Sound.play('buy'); });
 });
 refreshVolumeSliders();
-$('menu-settings-btn').onclick = () => { refreshGfxUi(); refreshSaveNote(); show('settings'); };
+$('menu-settings-btn').onclick = () => show('settings');
 
 // ---------- Graphics setting ----------
 function refreshGfxUi() {
@@ -2744,18 +2835,24 @@ function frame(now) {
   const dt = Math.min(0.1, raw);
   last = now;
   if (slowmoLeft > 0) { slowmoLeft -= dt; if (slowmoLeft <= 0) timeScale = 1; }
+  // Battery: the game canvas is hidden behind the home screen, and frozen while paused,
+  // so only draw it while something moves (plus a couple of frames to settle)
+  const menuUp = !$('menu').classList.contains('hidden');
+  const collapsing = run && run.over && run.time - run.overAt < 3;
+  const moving = run && (!paused || collapsing);
+  if (moving || menuUp) stillFrames = 0;
   if (run && !paused) {
     for (let i = 0; i < gameSpeed && !paused; i++) update(dt * timeScale);
-  } else if (run && run.over) {
+  } else if (collapsing && !menuUp) {
     update(dt); // let the collapse play out
   }
-  render(now);
+  if (!menuUp && (moving || stillFrames++ < 2)) render(now);
   renderMenuPlanet(now);
   uiTimer -= dt;
   if (uiTimer <= 0) {
     uiTimer = 0.1;
     if (run && !paused && !run.over && Galaxy.has('autoBuy') && save.settings && save.settings.autoBuy) autoBuyStep();
-    refreshHud(); refreshUpgradeCards();
+    if (!menuUp) { refreshHud(); refreshUpgradeCards(); }
   }
   if (toastTimer > 0) { toastTimer -= dt; if (toastTimer <= 0) $('toast').classList.remove('show'); }
   // Heartbeat so offline time is measured even if the app is killed without a "hidden" event
@@ -2767,6 +2864,7 @@ let lastHeartbeat = 0;
 buildUpgradeCards();
 equipSkin(save.skin);
 GFX = save.settings.gfx === 'low' ? 0 : save.settings.gfx === 'high' ? 2 : (save.settings.gfxAuto ?? 2);
+document.body.classList.toggle('gfx-low', GFX === 0);
 Ads.setNoAds(save.noAds);
 if (!save.galaxy) save.galaxy = 1;
 if (save.galaxyBest === undefined) save.galaxyBest = save.bestWave || 0;
