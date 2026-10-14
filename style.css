@@ -706,6 +706,14 @@ button { font: inherit; color: inherit; cursor: pointer; }
   background: var(--stardust); color: #3a2400;
 }
 
+.go-nova {
+  display: block; width: 100%; margin: 8px 0 0; padding: 9px 10px; border-radius: 12px; font-size: 14px;
+  background: rgba(255,211,74,.1); border: 1px solid rgba(255,211,74,.55); color: var(--stardust);
+  box-shadow: 0 0 14px rgba(255,211,74,.2);
+}
+.go-nova small { display: block; font-size: 11px; color: #c4c8e6; margin-top: 1px; }
+.go-nova.hidden { display: none; }
+
 /* ---------- Volume sliders ---------- */
 .vol-row { display: flex; align-items: center; gap: 10px; margin: 12px 0; text-align: left; }
 .vol-row span { flex: 0 0 82px; font-weight: 600; font-size: 15px; }

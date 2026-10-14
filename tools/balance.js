@@ -116,14 +116,13 @@ function spendDarkMatter() {
 
 export async function progression({ hours = 8, maxGalaxy = 7 } = {}) {
   const backup = localStorage.getItem(SAVE_KEY);
-  const realPersist = window.persist;
-  window.persist = () => {}; // no storage writes while simulating
+  window.persist = () => {}; // no storage writes while simulating (or after: see finally)
   Sound.play = () => {};
   const keep = { tips: save.tips, settings: save.settings };
   for (const k of Object.keys(save)) delete save[k];
   Object.assign(save, defaultSave(), keep, { galaxy: 1, galaxyBest: 0, darkMatter: 0, dmEarned: 0, cons: {} });
 
-  const out = window.__prog = { done: false, galaxies: [], log: [] };
+  const out = window.__prog = { done: false, galaxies: [], log: [], runs: [] }; // runs: [hours, galaxy, wave]
   let gStats = null, playSec = 0, stall = 0;
   const newGalaxy = () => { gStats = { galaxy: save.galaxy, best: 0, runs: 0, hours: 0, dm: 0 }; out.galaxies.push(gStats); stall = 0; };
   newGalaxy();
@@ -134,6 +133,8 @@ export async function progression({ hours = 8, maxGalaxy = 7 } = {}) {
       simRun({ pulse: 'smart', maxWave: 200, maxMinutes: 60 });
       if (!run.over) gameOver(); // hit the time cap: count it as a finished run
       playSec += run.time;
+      const boss = run.enemies.find(e => e.boss && !e.dead);
+      out.runs.push([+(playSec / 3600).toFixed(2), save.galaxy, run.wave, boss ? boss.type : '-', run.enemies.length]);
       gStats.runs++;
       gStats.hours = +(gStats.hours + run.time / 3600).toFixed(2);
       gStats.best = save.galaxyBest || 0;
@@ -155,9 +156,10 @@ export async function progression({ hours = 8, maxGalaxy = 7 } = {}) {
       out.hours = +(playSec / 3600).toFixed(2);
     }
   } finally {
-    window.persist = realPersist;
+    // persist stays stubbed: the in-memory save is still the simulated one, and the 5s heartbeat
+    // would otherwise write it over the real save. Reload the page to play again.
     if (backup === null) localStorage.removeItem(SAVE_KEY); else localStorage.setItem(SAVE_KEY, backup);
     out.done = true;
   }
-  return out; // reload the page afterwards: the in-memory save is still the simulated one
+  return out;
 }

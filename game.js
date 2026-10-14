@@ -757,13 +757,15 @@ function hitPlanet(dmg, big) {
 }
 
 // preferRanged: shooters within range win over closer enemies (used by the core)
-function nearestEnemy(x, y, range, preferRanged = false) {
+// queenFirst: the Nebula Queen shields everyone near her, so she's always the top target in range
+function nearestEnemy(x, y, range, preferRanged = false, queenFirst = false) {
   let best = null, bd = Infinity;
   for (const e of run.enemies) {
     if (e.dead) continue;
     let d = Math.hypot(e.x - x, e.y - y) - e.r;
     if (d > range) continue;
     if (preferRanged && e.ranged) d -= 1000;
+    if (queenFirst && e === run.queen) d -= 2000;
     if (d < bd) { bd = d; best = e; }
   }
   return best;
@@ -773,7 +775,7 @@ function nearestEnemy(x, y, range, preferRanged = false) {
 const planetUnderAttack = () => run.enemies.some(e => !e.dead && !e.ranged && Math.hypot(e.x, e.y) <= e.stopAt + 2);
 
 function fireFrom(x, y, range, dmgMult) {
-  const target = nearestEnemy(x, y, range, PACE.coreTargetsShooters && !planetUnderAttack());
+  const target = nearestEnemy(x, y, range, PACE.coreTargetsShooters && !planetUnderAttack(), true);
   if (!target) return false;
   const crit = Math.random() < stat('critChance');
   const dmg = stat('coreDamage') * dmgMult * (crit ? stat('critMult') : 1);
@@ -1080,7 +1082,14 @@ function gameOver() {
   $('go-wave').textContent = reached;
   $('go-kills').textContent = fmt(run.kills);
   $('go-stardust').innerHTML = '+' + ICON_S + fmt(run.stardust);
-  $('go-best').textContent = ch ? `Best today: wave ${Challenge.state().best}` : reached > prevBest ? '🏆 New best wave!' : `Best wave: ${save.bestWave}`;
+  // Stuck near the same wave? Point to the Supernova, the way past the wall
+  const nova = ch ? 0 : Galaxy.darkMatterFor();
+  $('go-nova').classList.toggle('hidden', !nova);
+  if (nova) {
+    const next = Galaxy.info(Galaxy.n + 1);
+    $('go-nova').innerHTML = `🌟 <b>Supernova ready</b> · +<span class="dm">◆</span>${fmt(nova)} Dark Matter<small>Travel to ${next.name} and come back much stronger</small>`;
+  }
+  $('go-best').textContent = ch ?`Best today: wave ${Challenge.state().best}` : reached > prevBest ? '🏆 New best wave!' : `Best wave: ${save.bestWave}`;
   Sound.play('boom');
   Sound.play('kill_big');
   Sound.muffle(true, 1.5);
@@ -2513,6 +2522,7 @@ $('obs-close').onclick = () => show('menu');
 $('menu-missions-btn').onclick = () => show('missions');
 $('go-missions-btn').onclick = () => show('missions');
 $('go-home-btn').onclick = () => show('menu');
+$('go-nova').onclick = () => show('galaxy');
 $('missions-close').onclick = () => show('menu');
 $('menu-bestiary-btn').onclick = () => show('bestiary');
 $('bst-close').onclick = () => show('menu');
