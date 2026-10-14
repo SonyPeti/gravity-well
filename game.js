@@ -36,7 +36,7 @@ const SPRITE_NAMES = [
   'orb_rock', 'orb_ice', 'orb_lava', 'orb_drone', 'orb_void', 'orb_gold',
   'enemy_drifter', 'enemy_comet', 'enemy_scout', 'enemy_molten', 'enemy_wraith',
   'boss_worm', 'boss_mothership',
-  'skin_ember', 'skin_glacier', 'skin_gasgiant', 'skin_crystal', 'skin_void',
+  'skin_ember', 'skin_glacier', 'skin_gasgiant', 'skin_crystal', 'skin_void', 'skin_solar',
 ];
 const SPRITES = {};
 for (const name of SPRITE_NAMES) {
@@ -200,9 +200,14 @@ const SKINS = [
     perk: '+10% crit chance, +50% crit damage', drawback: '−10% max health', cost: 350, wave: 20 },
   { id: 'void',     name: 'Void Heart',    img: 'skin_void',     size: 2.7, glow: '#9B5CFF',
     perk: '25% of captures become Void Shards', drawback: '−10% energy', cost: 600, wave: 30 },
+  // Supporter Pack exclusive: looks only, no stat changes (so nobody pays for power)
+  { id: 'solar',    name: 'Solar Crown',   img: 'skin_solar',    size: 2.35, glow: '#FFD34A',
+    perk: 'Supporter exclusive. Pure style, no drawbacks.', drawback: '', cost: 0, wave: 0, exclusive: true },
 ];
 const SKIN = Object.fromEntries(SKINS.map(s => [s.id, s]));
 const skin = () => SKIN[save.skin] || SKIN.terra;
+// Planets earned by playing (the 'own all 6' achievement doesn't count the paid one)
+const earnedSkins = () => save.skins.filter(id => SKIN[id] && !SKIN[id].exclusive).length;
 const isSkin = id => !Challenge.active && save.skin === id;   // ...and planet perks
 
 // ============================================================
@@ -2305,6 +2310,7 @@ function renderSkins() {
     let btn;
     if (equipped) btn = '<button disabled>Equipped</button>';
     else if (owned) btn = '<button class="equip">Equip</button>';
+    else if (s.exclusive) btn = '<button class="buy">🛒 Supporter Pack</button>';
     else if (!waveOk) btn = `<button disabled>🔒 Reach wave ${s.wave}</button>`;
     else btn = `<button class="buy" ${save.stardust < s.cost ? 'disabled' : ''}>${ICON_S}${fmt(s.cost)}</button>`;
     el.innerHTML = `
@@ -2317,11 +2323,12 @@ function renderSkins() {
     const b = el.querySelector('button');
     b.onclick = () => {
       if (equipped) return;
+      if (!owned && s.exclusive) { show('store'); return; }
       if (!owned) {
         if (!waveOk || save.stardust < s.cost) return;
         save.stardust -= s.cost;
         save.skins.push(s.id);
-        Progress.max('skins', save.skins.length);
+        Progress.max('skins', earnedSkins());
       }
       Sound.play(owned ? 'equip' : 'fanfare');
       equipSkin(s.id);
@@ -2522,7 +2529,7 @@ function refreshLobby() {
   $('lobby-daily').classList.toggle('ready', ready);
 }
 
-const OVERLAYS = ['menu', 'pause', 'gameover', 'observatory', 'draft', 'howto', 'welcome', 'missions', 'bestiary', 'settings', 'galaxy', 'challenge', 'revive'];
+const OVERLAYS = ['menu', 'pause', 'gameover', 'observatory', 'draft', 'howto', 'welcome', 'missions', 'bestiary', 'settings', 'galaxy', 'challenge', 'revive', 'store'];
 function show(id) {
   clearCoach();
   for (const o of OVERLAYS) $(o).classList.toggle('hidden', o !== id);
@@ -2545,11 +2552,12 @@ function show(id) {
   if (modal) modal.scrollTop = 0;
   if (id === 'galaxy') Galaxy.render();
   if (id === 'challenge') Challenge.render();
+  if (id === 'store') Store.render();
   if (id === 'menu') refreshLobby();
   if (id === 'bestiary') { const s = $('bst-wave'); s.max = Math.max(30, save.bestWave + 10); if (!s.dataset.touched) s.value = Math.max(1, save.bestWave); renderBestiary(); }
   if (id === 'menu' || id === 'gameover') Progress.refreshBadge();
   if (id === 'pause') { renderMutList($('pause-muts')); disarmQuit(); Sound.muffle(true); }
-  if (id === 'menu' || id === 'observatory' || id === 'missions' || id === 'bestiary' || id === 'settings' || id === 'galaxy' || id === 'challenge' || (id === 'howto' && !(run && !run.over))) {
+  if (id === 'menu' || id === 'observatory' || id === 'missions' || id === 'bestiary' || id === 'settings' || id === 'galaxy' || id === 'challenge' || id === 'store' || (id === 'howto' && !(run && !run.over))) {
     Sound.music('menu');
     Sound.muffle(false, 0.8);
   }
@@ -2655,7 +2663,7 @@ $('quit-btn').onclick = () => {
 };
 
 // Back (Android button, Esc key, or a tap outside a window): close the top screen
-const BACK_TO_MENU = ['observatory', 'missions', 'bestiary', 'settings', 'galaxy', 'challenge'];
+const BACK_TO_MENU = ['observatory', 'missions', 'bestiary', 'settings', 'galaxy', 'challenge', 'store'];
 function goBack() {
   const open = OVERLAYS.find(o => !$(o).classList.contains('hidden'));
   if (open === 'pause') { resumeRun(); return true; }
@@ -2865,6 +2873,8 @@ $('auto-buy').onclick = () => {
 };
 $('auto-buy').classList.toggle('active', !!save.settings.autoBuy);
 $('settings-close').onclick = () => show('menu');
+$('menu-store-btn').onclick = () => show('store');
+$('store-close').onclick = () => show('menu');
 function refreshSoundToggles() {
   document.querySelectorAll('.snd-toggle').forEach(b => b.classList.toggle('off', !save.settings[b.dataset.snd]));
   Sound.configure(save.settings);
@@ -2978,7 +2988,7 @@ if (save.darkMatter === undefined) save.darkMatter = 0;
 if (!save.cons) save.cons = {};
 Progress.ensureDaily();
 Progress.sync('wave', save.bestWave);
-Progress.sync('skins', save.skins.length);
+Progress.sync('skins', earnedSkins());
 resize();
 show('menu');
 checkOffline();

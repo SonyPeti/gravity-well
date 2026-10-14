@@ -67,6 +67,7 @@
 <div id="menu" class="overlay lobby">
   <div class="lobby-top">
     <div class="lobby-chip"><span class="label">Stardust</span><b id="menu-stardust" class="stardust"><img class="cur" src="assets/icon_stardust.png" alt="✦">0</b></div>
+    <button id="menu-store-btn" class="lobby-store">🛒 Store</button>
     <div class="lobby-chip right"><span class="label">Best wave</span><b id="menu-best">0</b></div>
   </div>
   <img id="menu-logo" src="assets/ui_logo.png" alt="Gravity Well">
@@ -104,6 +105,15 @@
     <button id="galaxy-close" class="btn">Back</button>
   </div>
   <div id="nova-flash"></div>
+</div>
+
+<!-- Store -->
+<div id="store" class="overlay hidden">
+  <div class="modal wide">
+    <h2>🛒 Store</h2>
+    <div id="store-body"></div>
+    <button id="store-close" class="btn">Back</button>
+  </div>
 </div>
 
 <!-- Daily Challenge -->
@@ -300,6 +310,7 @@
 
 <script src="audio.js"></script>
 <script src="ads.js"></script>
+<script src="store.js"></script>
 <script src="progress.js"></script>
 <script src="galaxy.js"></script>
 <script src="challenge.js"></script>
