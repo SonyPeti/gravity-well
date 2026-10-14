@@ -49,6 +49,19 @@ Cards come in rarities: **Common (white) · Rare (blue) · Epic (purple) · Lege
 - **Tidal Lock:** orbitals stop spinning but hit 3× harder.
 - **Second Gravity:** captured enemies keep their own small orbit.
 
+### Fusions (as built)
+Own both parent mutations in one run and the fusion **always takes the last slot of every draft** until you pick it (rerolls keep it). Fusions keep the parents and upgrade them into something new. The Bestiary shows each recipe, but the result stays "???" until you've drafted it once, so there is always a pair to chase.
+
+| Fusion | Recipe | Effect |
+|---|---|---|
+| Thermal Shock | Frostbite + Kindling | Orbital hits on chilled, burning enemies erupt in a small blast (once a second per enemy) |
+| Event Horizon | Black Hole Heart + Hungry Gravity | Black holes every 40 kills instead of 75, 1.4x bigger, 7 s |
+| Trinary Star | Binary Star + Rapid Core | A second mini-star on the opposite side, both at full core damage |
+| Cluster Bomb | Shrapnel + Dense Rock | Shrapnel blasts 56 instead of 32 radius, 6x instead of 3x orbit damage |
+| Midas Orbit | Golden Touch + Magnetic Field | Golden moons never crack, +10% orbit damage per golden moon |
+| Blood Moon | Siphon + Glass Cannon | Siphon heals 3x, Glass Cannon only costs 25% health |
+| Tidal Wave | Tidal Lock + Chain Pulse | Each Gravity Pulse spins the locked orbitals at 3x speed for 4 s |
+
 ## Enemies
 | Enemy | Role | Look |
 |---|---|---|

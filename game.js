@@ -25,7 +25,10 @@ const pct = v => Math.round(v * 100) + '%';
 // Inline icon HTML (emoji stay as alt text / canvas fallback)
 const ICON_E = '<img class="cur" src="assets/icon_energy.png" alt="⚡">';
 const ICON_S = '<img class="cur" src="assets/icon_stardust.png" alt="✦">';
-const mutIcon = (m, cls = 'mut-ico') => `<img class="${cls}" src="assets/${m.img || 'mut_' + m.id}.png" alt="${m.icon}">`;
+// A fusion shows its two parents' icons overlapped
+const mutIcon = (m, cls = 'mut-ico') => m.fusion
+  ? `<span class="fuse-ico">${m.fusion.map(id => mutIcon(MUT[id], cls)).join('')}</span>`
+  : `<img class="${cls}" src="assets/${m.img || 'mut_' + m.id}.png" alt="${m.icon}">`;
 
 // ============================================================
 //  Sprites — drop PNGs into /assets with these names and they
@@ -154,6 +157,7 @@ const RARITY = {
   rare:      { weight: 28, label: 'Rare' },
   epic:      { weight: 10, label: 'Epic' },
   legendary: { weight: 3,  label: 'Legendary' },
+  fusion:    { weight: 0,  label: 'Fusion' }, // never rolled: offered when both parents are owned
 };
 const MUTATIONS = [
   { id: 'heavyCore',  rarity: 'common', icon: '💥', name: 'Heavy Core',        desc: '+40% core damage', stack: true },
@@ -181,6 +185,18 @@ const MUTATIONS = [
   { id: 'echoPulse',  rarity: 'epic',   icon: '🔁', name: 'Echo Pulse',   desc: 'Every Gravity Pulse fires a second, half-power blast', requires: 'echoPulse', img: 'ui_pulse' },
   { id: 'twinCore',   rarity: 'legendary', icon: '⚡', name: 'Twin Core', desc: 'Your core fires two shots at once', requires: 'twinCore', img: 'upg_fireRate' },
 ];
+// Fusions: own both parents and the fusion takes a slot in every draft until you take it.
+// Each one upgrades its two parents into something new, so drafting toward a pair pays off.
+const FUSIONS = [
+  { id: 'thermalShock', fusion: ['frostbite', 'kindling'],    icon: '♨️', name: 'Thermal Shock', desc: 'Orbital hits on chilled, burning enemies erupt in a fiery blast' },
+  { id: 'eventHorizon', fusion: ['blackHole', 'hungry'],      icon: '🌌', name: 'Event Horizon', desc: 'Black holes form every 40 kills, pull from further and last longer' },
+  { id: 'trinaryStar',  fusion: ['binaryStar', 'rapidCore'],  icon: '🌟', name: 'Trinary Star',  desc: 'A second mini-star joins, and both fire at full core power' },
+  { id: 'clusterBomb',  fusion: ['shrapnel', 'denseRock'],    icon: '💣', name: 'Cluster Bomb',  desc: 'Shattering orbitals blow up twice as wide and twice as hard' },
+  { id: 'midasOrbit',   fusion: ['goldenTouch', 'magnet'],    icon: '🪙', name: 'Midas Orbit',   desc: 'Golden moons never crack, and each adds +10% orbit damage' },
+  { id: 'bloodMoon',    fusion: ['siphon', 'glassCannon'],    icon: '🌑', name: 'Blood Moon',    desc: 'Siphon heals 3x, and Glass Cannon costs only 25% health' },
+  { id: 'tidalWave',    fusion: ['tidalLock', 'chainPulse'],  icon: '🌊', name: 'Tidal Wave',    desc: 'Gravity Pulse breaks the lock: orbitals whirl at 3x speed for 4 s' },
+];
+for (const f of FUSIONS) MUTATIONS.push(Object.assign(f, { rarity: 'fusion' }));
 const MUT = Object.fromEntries(MUTATIONS.map(m => [m.id, m]));
 const DRAFT_EVERY = 3; // waves
 
@@ -225,12 +241,14 @@ function stat(id) {
     case 'critMult':    return base(id) + (isSkin('crystal') ? 0.5 : 0);
     case 'fireRate':    return base(id) * Math.pow(1.3, mc('rapidCore'));
     case 'orbitDamage': return base(id) * metaVal('sOrbit') * (mc('wideOrbit') ? 1.15 : 1) * (mc('hungry') ? 1.5 : 1)
-                               * (mc('tidalLock') ? 3 : 1) * (mc('glassCannon') ? 2 : 1) * Galaxy.dmgMult();
+                               * (mc('tidalLock') ? 3 : 1) * (mc('glassCannon') ? 2 : 1) * Galaxy.dmgMult()
+                               * (mc('midasOrbit') ? 1 + 0.1 * (run.goldCount || 0) : 1);
     case 'slots':       return Math.min(Challenge.has('cramped') ? 6 : 999, base(id) + (mc('outerHalo') ? 6 : 0) + (isSkin('gasgiant') ? 3 : 0));
     case 'capture':     return Math.min(0.95, base(id) + metaVal('sCapture') + 0.15 * mc('magnet') + (Challenge.has('fragile') ? 0.3 : 0));
     case 'durability':  return base(id) * Math.pow(1.5, mc('denseRock')) * (Challenge.has('fragile') ? 0.5 : 1);
-    case 'spin':        return mc('tidalLock') ? 0 : base(id) * (mc('retrograde') ? 1.3 : 1);
-    case 'maxHp':       return base(id) * metaVal('sHull') * Math.pow(1.3, mc('thickAtmo')) * (mc('glassCannon') ? 0.5 : 1)
+    case 'spin':        if (mc('tidalLock')) return run.spinBoost > 0 ? base(id) * 3 : 0;
+                        return base(id) * (mc('retrograde') ? 1.3 : 1);
+    case 'maxHp':       return base(id) * metaVal('sHull') * Math.pow(1.3, mc('thickAtmo')) * (mc('glassCannon') ? (mc('bloodMoon') ? 0.75 : 0.5) : 1)
                                * (isSkin('ember') || isSkin('crystal') ? 0.9 : 1) * Galaxy.hpMult();
     case 'regen':       return base(id) * metaVal('sHull');
     case 'energyKill':  return base(id) * metaVal('sEnergy') * (isSkin('void') ? 0.9 : 1);
@@ -573,11 +591,18 @@ function shatter(o) {
   burst(o.x, o.y, ORBITALS[o.type].trail, 10, false);
   Sound.play('shatter', { x: o.x });
   if (mc('shrapnel')) {
-    const dmg = stat('orbitDamage') * 3;
-    for (const e of run.enemies) if (!e.dead && Math.hypot(e.x - o.x, e.y - o.y) < 32 + e.r) damageEnemy(e, dmg, false, false, 'orbit');
-    run.waves.push({ x: o.x, y: o.y, r: 4, max: 32, t: 0.25, color: '#FF8A2A' });
+    const big = mc('clusterBomb'), rad = big ? 56 : 32;
+    const dmg = stat('orbitDamage') * (big ? 6 : 3);
+    for (const e of run.enemies) if (!e.dead && Math.hypot(e.x - o.x, e.y - o.y) < rad + e.r) damageEnemy(e, dmg, false, false, 'orbit');
+    run.waves.push({ x: o.x, y: o.y, r: 4, max: rad, t: 0.25, color: '#FF8A2A' });
   }
   o.dead = true;
+}
+
+function thermalBlast(x, y, od) {
+  for (const e of run.enemies) if (!e.dead && Math.hypot(e.x - x, e.y - y) < 30 + e.r) damageEnemy(e, od * 1.5, false, false, 'orbit');
+  run.waves.push({ x, y, r: 4, max: 30, t: 0.25, color: '#FFB27A' });
+  burst(x, y, '#8FD8FF', 5, false);
 }
 
 // ---------- Spawning ----------
@@ -714,7 +739,7 @@ function killEnemy(e) {
   }
   else if (t.splits) Sound.play('kill_big', { x: e.x, vol: 0.6 });
   else Sound.play('kill', { x: e.x });
-  if (mc('siphon')) run.hp = Math.min(stat('maxHp'), run.hp + stat('maxHp') * 0.005 * mc('siphon'));
+  if (mc('siphon')) run.hp = Math.min(stat('maxHp'), run.hp + stat('maxHp') * 0.005 * mc('siphon') * (mc('bloodMoon') ? 3 : 1));
   if (t.hive) {
     for (let i = 0; i < 6; i++) {
       const a = i * TAU / 6;
@@ -736,9 +761,10 @@ function killEnemy(e) {
   }
   if (mc('blackHole')) {
     run.holeKills++;
-    if (run.holeKills >= 75) {
+    const horizon = mc('eventHorizon');
+    if (run.holeKills >= (horizon ? 40 : 75)) {
       run.holeKills = 0;
-      run.holes.push({ x: e.x * 0.8, y: e.y * 0.8, t: 5 });
+      run.holes.push({ x: e.x * 0.8, y: e.y * 0.8, t: horizon ? 7 : 5, s: horizon ? 1.4 : 1 });
       Sound.play('hole', { x: e.x });
     }
   }
@@ -863,6 +889,7 @@ function usePulse() {
   Progress.track('pulses');
   vibrate(35);
   if (mc('echoPulse')) run.echoAt = run.time + 0.6;
+  if (mc('tidalWave')) run.spinBoost = 4;
   pulseBlast();
 }
 
@@ -1064,7 +1091,7 @@ function endWave() {
 }
 
 function rollMutations(n) {
-  const pool = MUTATIONS.filter(m => (m.stack || !mc(m.id)) && (!m.requires || Galaxy.has(m.requires)));
+  const pool = MUTATIONS.filter(m => !m.fusion && (m.stack || !mc(m.id)) && (!m.requires || Galaxy.has(m.requires)));
   const picks = [];
   while (picks.length < n && pool.length) {
     const total = pool.reduce((s, m) => s + RARITY[m.rarity].weight, 0);
@@ -1076,11 +1103,20 @@ function rollMutations(n) {
   return picks;
 }
 
+// A ready fusion always takes the last slot, so a pair you built toward never gets lost to bad luck
+const readyFusions = () => FUSIONS.filter(f => !mc(f.id) && f.fusion.every(id => mc(id)));
+function rollDraft() {
+  const opts = rollMutations(Galaxy.has('fourth') ? 4 : 3);
+  const ready = readyFusions();
+  if (ready.length) opts.splice(Math.max(0, opts.length - 1), 1, ready[Math.floor(Math.random() * ready.length)]);
+  return opts;
+}
+
 let draftOptions = [];
 function openDraft() {
   run.drafting = true;
   paused = true;
-  draftOptions = rollMutations(Galaxy.has('fourth') ? 4 : 3);
+  draftOptions = rollDraft();
   renderDraft();
   show('draft');
   Sound.play('draft_open');
@@ -1100,7 +1136,7 @@ function renderDraft() {
       <div class="micon">${mutIcon(m)}</div>
       <div class="mname">${m.name}</div>
       <div class="mdesc">${m.desc}</div>
-      <div class="mcount">${owned ? 'Owned x' + owned : ''}</div>`;
+      <div class="mcount">${m.fusion ? m.fusion.map(id => MUT[id].name).join(' + ') : owned ? 'Owned x' + owned : ''}</div>`;
     el.onclick = () => pickMutation(m);
     wrap.appendChild(el);
   }
@@ -1123,8 +1159,20 @@ function pickMutation(m) {
   refreshMutStrip();
   refreshUpgradeCards();
   toast(`${mutIcon(m)} ${m.name}`);
-  Sound.play(m.rarity === 'legendary' || m.rarity === 'epic' ? 'fanfare' : 'card_pick');
-  if (m.rarity === 'legendary') { screenFlash('#FFD34A'); vibrate([30, 30, 60]); }
+  Sound.play(m.fusion || m.rarity === 'legendary' || m.rarity === 'epic' ? 'fanfare' : 'card_pick');
+  if (m.fusion) {
+    if (!save.fusions) save.fusions = {};
+    const first = !save.fusions[m.id];
+    save.fusions[m.id] = true;
+    persist();
+    Progress.track('fusions');
+    Progress.max('fusionsFound', Object.keys(save.fusions).length);
+    banner('FUSION', m.name + (first ? ' · new discovery!' : ''), false);
+    screenFlash('#3FF2E0');
+    vibrate([30, 30, 30, 30, 80]);
+    run.shake = Math.min(6, run.shake + 3);
+  }
+  else if (m.rarity === 'legendary') { screenFlash('#FFD34A'); vibrate([30, 30, 60]); }
   else if (m.rarity === 'epic') screenFlash('#B06CFF');
   Sound.muffle(false, 0.8);
 }
@@ -1281,13 +1329,21 @@ function update(dt) {
     if (mc('binaryStar')) {
       r.starAcc += dt * stat('fireRate');
       if (r.starAcc >= 1) {
-        const sp = binaryStarPos();
-        if (fireFrom(sp.x, sp.y, 110, 0.5) !== false) r.starAcc -= 1; else r.starAcc = 1;
+        const trinary = mc('trinaryStar');
+        let fired = false;
+        for (let k = 0; k < (trinary ? 2 : 1); k++) {
+          const sp = binaryStarPos(k);
+          if (fireFrom(sp.x, sp.y, 110, trinary ? 1 : 0.5) !== false) fired = true;
+        }
+        if (fired) r.starAcc -= 1; else r.starAcc = 1;
       }
     }
   }
 
   // Orbit layout
+  r.spinBoost = Math.max(0, (r.spinBoost || 0) - dt);
+  r.goldCount = 0;
+  for (const o of r.orbitals) if (o.type === 'gold') r.goldCount++;
   const spin = stat('spin');
   for (let i = 0; i < 4; i++) {
     const dir = (mc('retrograde') && i === 1) ? -1 : 1;
@@ -1346,6 +1402,8 @@ function update(dt) {
       for (const e of r.enemies) {
         if (e.dead || !hitTest(e, o.x, o.y, def.r)) continue;
         damageEnemy(e, od * def.dmg * (e.ghost ? 0.5 : 1), false, false, 'orbit');
+        // Thermal Shock: an enemy already chilled and burning erupts (at most once a second each)
+        if (mc('thermalShock') && e.slow > 0 && e.burn > 0 && !(r.time - e.shockAt < 1)) { e.shockAt = r.time; thermalBlast(e.x, e.y, od); }
         if (def.slow || mc('frostbite')) e.slow = 1.5;
         if (def.burn || mc('kindling')) { e.burn = 3; e.burnDps = Math.max(e.burnDps, od * 0.4); }
         if (def.gold) { const g = (1 + 0.3 * r.wave) * 0.5; r.energy += g; }
@@ -1357,7 +1415,7 @@ function update(dt) {
       if (hit) {
         Sound.play('orb_' + o.type, { x: o.x });
         o.cd = 0.3;
-        o.hp -= def.pierce ? 0.5 : 1;
+        if (!(def.gold && mc('midasOrbit'))) o.hp -= def.pierce ? 0.5 : 1;
         if (o.hp <= 0) shatter(o);
       }
     }
@@ -1438,8 +1496,9 @@ function update(dt) {
     for (const e of r.enemies) {
       if (e.dead) continue;
       const dx = h.x - e.x, dy = h.y - e.y, d = Math.hypot(dx, dy) || 1;
-      if (d < 95 && !e.boss) { e.x += dx / d * 70 * dt; e.y += dy / d * 70 * dt; }
-      if (d < 40 + e.r) damageEnemy(e, stat('coreDamage') * 3 * dt, false, true);
+      const s = h.s || 1;
+      if (d < 95 * s && !e.boss) { e.x += dx / d * 70 * dt; e.y += dy / d * 70 * dt; }
+      if (d < 40 * s + e.r) damageEnemy(e, stat('coreDamage') * 3 * dt, false, true);
     }
   }
 
@@ -1518,9 +1577,10 @@ function update(dt) {
   r.wobble = Math.max(0, r.wobble - dt * 0.6);
 }
 
-function binaryStarPos() {
+// k = 1 is Trinary Star's second mini-star, on the opposite side
+function binaryStarPos(k = 0) {
   const rad = ringRadius(ringCount() - 1) + 20;
-  const a = -run.time * 0.7;
+  const a = -run.time * 0.7 + k * Math.PI;
   return { x: Math.cos(a) * rad, y: Math.sin(a) * rad };
 }
 
@@ -1876,15 +1936,16 @@ function render(now) {
   for (const h of r.holes) {
     const a = Math.min(1, h.t);
     ctx.globalCompositeOperation = 'lighter';
-    glow(h.x, h.y, 60, '#9B5CFF', 0.5 * a);
+    const s = h.s || 1;
+    glow(h.x, h.y, 60 * s, '#9B5CFF', 0.5 * a);
     ctx.globalCompositeOperation = 'source-over';
     ctx.strokeStyle = `rgba(201,168,255,${0.8 * a})`;
     ctx.lineWidth = 2;
     for (let k = 0; k < 3; k++) {
-      ctx.beginPath(); ctx.ellipse(h.x, h.y, 26 + k * 6, 10 + k * 3, tt * (1.5 + k * 0.4), 0, TAU); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(h.x, h.y, (26 + k * 6) * s, (10 + k * 3) * s, tt * (1.5 + k * 0.4), 0, TAU); ctx.stroke();
     }
     ctx.fillStyle = '#000';
-    ctx.beginPath(); ctx.arc(h.x, h.y, 14, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(h.x, h.y, 14 * s, 0, TAU); ctx.fill();
   }
 
   // Gravity lines to arriving captures
@@ -1969,12 +2030,14 @@ function render(now) {
 
   // Binary star
   if (mc('binaryStar') && !r.over) {
-    const sp = binaryStarPos();
-    ctx.globalCompositeOperation = 'lighter';
-    glow(sp.x, sp.y, 16, '#FFD34A', 0.7);
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.fillStyle = '#FFF6C8';
-    ctx.beginPath(); ctx.arc(sp.x, sp.y, 4, 0, TAU); ctx.fill();
+    for (let k = 0; k < (mc('trinaryStar') ? 2 : 1); k++) {
+      const sp = binaryStarPos(k);
+      ctx.globalCompositeOperation = 'lighter';
+      glow(sp.x, sp.y, 16, '#FFD34A', 0.7);
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = '#FFF6C8';
+      ctx.beginPath(); ctx.arc(sp.x, sp.y, 4, 0, TAU); ctx.fill();
+    }
   }
 
   // Shockwaves
@@ -2497,6 +2560,18 @@ function renderBestiary() {
         <div class="bdesc">Bigger, ringed in gold, and worth 3× energy. Each has one trait:</div>
         <div class="etraits">${ELITE_LIST.map(k => `<div><b>${ELITE_TRAITS[k].icon} ${ELITE_TRAITS[k].name}</b><span>${ELITE_TRAITS[k].desc}</span></div>`).join('')}</div></div>`
     : `<div class="beast locked elites"><div class="bname">👑 ???<span class="bchance off">Appears from wave 20</span></div><div class="bdesc">Something stronger is coming.</div></div>`;
+  // Fusions: the recipe is shown, the result stays a mystery until you draft it once
+  const found = save.fusions || {};
+  html += `<h3 class="bst-head">⚗️ Fusions · ${FUSIONS.filter(f => found[f.id]).length}/${FUSIONS.length}</h3>
+    <p class="muted small bst-note">Own both mutations in one run and the fusion shows up in your next draft.</p>`;
+  for (const f of FUSIONS) {
+    const [a, b] = f.fusion.map(id => MUT[id]);
+    html += found[f.id]
+      ? `<div class="beast fusion"><div class="bico">${mutIcon(f)}</div><div class="bname">${f.name}</div>
+          <div class="bdesc">${f.desc}<br><span class="muted">${a.name} + ${b.name}</span></div></div>`
+      : `<div class="beast fusion locked"><div class="bico">${mutIcon(f)}</div><div class="bname">???</div>
+          <div class="bdesc">${a.name} + ${b.name}</div></div>`;
+  }
   $('bst-list').innerHTML = html;
 }
 // Use an enemy's own art when it exists, otherwise its recolored stand-in
@@ -2636,7 +2711,7 @@ document.querySelectorAll('[data-mtab]').forEach(b => { b.onclick = () => Progre
 $('reroll-btn').onclick = () => {
   if (!run || run.rerolls <= 0) return;
   run.rerolls--;
-  draftOptions = rollMutations(Galaxy.has('fourth') ? 4 : 3);
+  draftOptions = rollDraft();
   renderDraft();
   Sound.play('reroll');
 };

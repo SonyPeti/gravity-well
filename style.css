@@ -16,6 +16,7 @@
   --rare: #4AA8FF;
   --epic: #B06CFF;
   --legendary: #FFD34A;
+  --fusion: #3FF2E0;
 }
 
 * {
@@ -235,6 +236,22 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .mcard.rare { --c: var(--rare); }
 .mcard.epic { --c: var(--epic); }
 .mcard.legendary { --c: var(--legendary); }
+.mcard.fusion {
+  --c: var(--fusion);
+  background: linear-gradient(180deg, rgba(20,60,72,.95), rgba(40,22,60,.95));
+  animation: dealIn .35s ease-out backwards, fuseGlow 1.6s ease-in-out .4s infinite alternate;
+}
+.mcard.fusion .rarity { background: linear-gradient(90deg, var(--fusion), var(--legendary)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+@keyframes fuseGlow { to { box-shadow: 0 0 30px color-mix(in srgb, var(--legendary) 55%, transparent), inset 0 0 26px color-mix(in srgb, var(--fusion) 25%, transparent); border-color: var(--legendary); } }
+/* Fusion icon: the two parents overlapped */
+.fuse-ico { display: inline-flex; align-items: center; vertical-align: middle; }
+.fuse-ico img + img { margin-left: -35%; }
+.mcard .micon .fuse-ico img { width: 56px; height: 56px; }
+.bst-head { margin: 10px 0 0; font-size: 16px; }
+.bst-note { margin: 0 0 2px; }
+.beast.fusion .bico { grid-row: span 2; align-self: center; justify-self: center; }
+.beast.fusion .bico img { width: 36px; height: 36px; }
+.beast.fusion.locked .bico img { filter: brightness(0) drop-shadow(0 0 5px rgba(63,242,224,.6)); }
 @keyframes dealIn { from { opacity: 0; transform: translateY(30px) scale(.9); } }
 
 .mut-list { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin: 4px 0 8px; }

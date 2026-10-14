@@ -44,6 +44,8 @@ const Progress = (() => {
     { id: 'mother',   name: 'Mothership Down',   desc: 'Defeat the Mothership',             stat: 'mother',    target: 1,     reward: 40,  img: 'boss_mothership' },
     { id: 'golden',   name: 'Golden Age',        desc: 'Capture a golden moon',             stat: 'cap_gold',  target: 1,     reward: 25,  img: 'orb_gold' },
     { id: 'legend',   name: 'Chosen One',        desc: 'Draft a legendary mutation',        stat: 'legendary', target: 1,     reward: 30,  img: 'mut_blackHole' },
+    { id: 'fuse1',    name: 'Alchemist',         desc: 'Draft your first fusion',           stat: 'fusions',   target: 1,     reward: 40,  img: 'mut_kindling' },
+    { id: 'fuseAll',  name: 'Grand Unifier',     desc: 'Discover all 7 fusions',            stat: 'fusionsFound', target: 7,  reward: 200, img: 'mut_outerHalo' },
     { id: 'mutant',   name: 'Mutant',            desc: 'Hold 8 mutations in one run',       stat: 'runMutations', target: 8,  reward: 40,  img: 'mut_glassCannon' },
     { id: 'orbit20',  name: 'Full Orbit',        desc: 'Have 20 moons orbiting at once',    stat: 'maxOrbit',  target: 20,    reward: 40,  img: 'upg_slots' },
     { id: 'pulse100', name: 'Pulse Master',      desc: 'Use Gravity Pulse 100 times',       stat: 'pulses',    target: 100,   reward: 30,  img: 'mut_chainPulse' },
