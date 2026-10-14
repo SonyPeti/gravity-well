@@ -190,6 +190,17 @@
   </div>
 </div>
 
+<!-- Second Wind (revive offer) -->
+<div id="revive" class="overlay hidden">
+  <div class="modal revive-modal">
+    <div id="revive-ring" class="revive-ring"><span id="revive-count">6</span></div>
+    <h2>Second Wind?</h2>
+    <p class="muted">Come back with half your health and blast every enemy away. Once per run.</p>
+    <button id="revive-yes" class="btn gold">Revive</button>
+    <button id="revive-no" class="link-btn">No thanks</button>
+  </div>
+</div>
+
 <!-- Game over -->
 <div id="gameover" class="overlay hidden">
   <div class="modal">
@@ -204,6 +215,7 @@
     <div id="go-challenge" class="go-challenge hidden"></div>
     <div id="go-summary" class="go-summary"></div>
     <button id="go-nova" class="go-nova hidden"></button>
+    <button id="go-double" class="btn gold slim hidden"></button>
     <button id="retry-btn" class="btn primary">Play again</button>
     <div class="btn-row three">
       <button id="go-home-btn" class="btn"><span class="bi">🏠</span>Home</button>

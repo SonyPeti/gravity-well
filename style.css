@@ -706,6 +706,21 @@ button { font: inherit; color: inherit; cursor: pointer; }
   background: var(--stardust); color: #3a2400;
 }
 
+/* Second Wind */
+.revive-modal { max-width: 320px; }
+.revive-ring {
+  --p: 1;
+  width: 92px; height: 92px; margin: 0 auto 10px; border-radius: 50%; padding: 6px;
+  background: conic-gradient(var(--stardust) calc(var(--p) * 360deg), rgba(255,255,255,.08) 0);
+  box-shadow: 0 0 24px rgba(255,211,74,.35);
+}
+.revive-ring span {
+  display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; border-radius: 50%;
+  background: var(--panel-solid); font-size: 36px; font-weight: 700; color: var(--stardust); font-variant-numeric: tabular-nums;
+}
+.btn.slim { padding: 10px; font-size: 15px; }
+#go-stardust.pop { display: inline-block; animation: popIn .5s ease-out; }
+
 .go-nova {
   display: block; width: 100%; margin: 8px 0 0; padding: 9px 10px; border-radius: 12px; font-size: 14px;
   background: rgba(255,211,74,.1); border: 1px solid rgba(255,211,74,.55); color: var(--stardust);

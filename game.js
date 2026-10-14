@@ -740,6 +740,7 @@ function killEnemy(e) {
 }
 
 function hitPlanet(dmg, big) {
+  if (run.reviveOffer || run.invuln > 0) return; // dead and deciding, or just revived
   if (run.shield > 0) {
     const absorbed = Math.min(run.shield, dmg);
     run.shield -= absorbed;
@@ -753,8 +754,73 @@ function hitPlanet(dmg, big) {
   run.hurt = 0.15;
   run.wobble = Math.min(0.15, run.wobble + 0.06);
   if (big) run.shake = Math.min(6, run.shake + 4);
-  if (run.hp <= 0) gameOver();
+  if (run.hp <= 0) planetDied();
 }
+
+// ---------- Second Wind: one ad-revive per run ----------
+const REVIVE_SECONDS = 6;
+const canRevive = () => !run.revived && !Challenge.active && run.wave >= 3;
+function planetDied() {
+  if (!canRevive()) { gameOver(); return; }
+  run.hp = 0;
+  run.reviveOffer = true;
+  paused = true;
+  Sound.play('boom');
+  vibrate([60, 40, 60]);
+  $('revive-yes').innerHTML = (Ads.noAds ? '' : '<span class="ad-tag">▶ AD</span> ') + 'Revive';
+  $('revive-yes').disabled = $('revive-no').disabled = false;
+  show('revive');
+  Sound.muffle(true);
+  // Countdown ring: when it runs out, the run ends
+  let left = REVIVE_SECONDS;
+  const ring = $('revive-ring');
+  clearInterval(run.reviveTimer);
+  run.reviveTimer = setInterval(() => {
+    if (run.watchingAd || document.hidden) return; // the clock stops while the ad plays or the app is in the background
+    left -= 0.05;
+    ring.style.setProperty('--p', Math.max(0, left / REVIVE_SECONDS).toFixed(3));
+    $('revive-count').textContent = Math.max(0, Math.ceil(left));
+    if (left <= 0) declineRevive();
+  }, 50);
+}
+function declineRevive() {
+  if (!run.reviveOffer) return;
+  clearInterval(run.reviveTimer);
+  run.reviveOffer = false;
+  run.revived = true;
+  hideAll();
+  gameOver();
+}
+async function acceptRevive() {
+  if (!run.reviveOffer || run.watchingAd) return;
+  $('revive-yes').disabled = $('revive-no').disabled = true;
+  run.watchingAd = true;
+  const ok = await Ads.rewarded('revive');
+  run.watchingAd = false;
+  if (!ok) { declineRevive(); return; }
+  clearInterval(run.reviveTimer);
+  run.reviveOffer = false;
+  run.revived = true;
+  Progress.track('revives');
+  // Back with half health, a moment of safety, and every enemy blown away from the planet
+  run.hp = stat('maxHp') * 0.5;
+  run.invuln = 2.5;
+  run.pulseCd = 0;
+  for (const e of run.enemies) {
+    const d = Math.hypot(e.x, e.y);
+    if (d < 200) e.kb += (e.boss ? 80 : 220) * (1 - d / 260);
+  }
+  run.eBullets.length = 0;
+  run.waves.push({ x: 0, y: 0, r: PLANET_R, max: 230, t: 0.7, color: '#FFD34A' });
+  hideAll();
+  paused = false;
+  Sound.muffle(false, 0.6);
+  Sound.play('fanfare');
+  screenFlash('#FFD34A');
+  banner('SECOND WIND', 'BACK IN THE FIGHT');
+}
+$('revive-yes').onclick = acceptRevive;
+$('revive-no').onclick = declineRevive;
 
 // preferRanged: shooters within range win over closer enemies (used by the core)
 // queenFirst: the Nebula Queen shields everyone near her, so she's always the top target in range
@@ -1082,6 +1148,12 @@ function gameOver() {
   $('go-wave').textContent = reached;
   $('go-kills').textContent = fmt(run.kills);
   $('go-stardust').innerHTML = '+' + ICON_S + fmt(run.stardust);
+  // Rewarded ad: double the Stardust from this run (normal runs only)
+  const dbl = $('go-double');
+  $('go-stardust').classList.remove('pop');
+  dbl.classList.toggle('hidden', !!ch || run.stardust < 1);
+  dbl.disabled = false;
+  dbl.innerHTML = `${Ads.noAds ? '' : '<span class="ad-tag">▶ AD</span> '}Double Stardust · +${ICON_S}${fmt(run.stardust)}`;
   // Stuck near the same wave? Point to the Supernova, the way past the wall
   const nova = ch ? 0 : Galaxy.darkMatterFor();
   $('go-nova').classList.toggle('hidden', !nova);
@@ -1179,6 +1251,7 @@ function update(dt) {
 
     // Planet
     r.hp = Math.min(stat('maxHp'), r.hp + stat('regen') * dt);
+    if (r.invuln > 0) r.invuln -= dt;
     r.pulseCd = Math.max(0, r.pulseCd - dt);
     if (r.echoAt && r.time >= r.echoAt) { r.echoAt = 0; pulseBlast(true); }
     if (r.wave <= 4 && r.pulseCd <= 0 && !save.tips.h_pulse && !Challenge.has('noPulse')
@@ -1874,6 +1947,11 @@ function render(now) {
       ctx.lineWidth = 2.5;
       ctx.beginPath(); ctx.arc(0, 0, PLANET_R + 10, 0, TAU); ctx.stroke();
     }
+    if (r.invuln > 0) { // Second Wind: golden shield while safe
+      ctx.strokeStyle = `rgba(255,211,74,${Math.min(1, r.invuln) * (0.55 + 0.3 * Math.sin(tt * 12))})`;
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(0, 0, PLANET_R + 9, 0, TAU); ctx.stroke();
+    }
     drawPlanet(0, 0, R, tt, r.hurt);
     // Pulse ready ring
     const cdMax = pulseCdMax();
@@ -2444,7 +2522,7 @@ function refreshLobby() {
   $('lobby-daily').classList.toggle('ready', ready);
 }
 
-const OVERLAYS = ['menu', 'pause', 'gameover', 'observatory', 'draft', 'howto', 'welcome', 'missions', 'bestiary', 'settings', 'galaxy', 'challenge'];
+const OVERLAYS = ['menu', 'pause', 'gameover', 'observatory', 'draft', 'howto', 'welcome', 'missions', 'bestiary', 'settings', 'galaxy', 'challenge', 'revive'];
 function show(id) {
   clearCoach();
   for (const o of OVERLAYS) $(o).classList.toggle('hidden', o !== id);
@@ -2456,7 +2534,7 @@ function show(id) {
   if (id === 'missions') Progress.open();
   if (id === 'settings') { refreshGfxUi(); refreshSaveNote(); }
   // Screens that pop up mid-action ignore taps for a moment, so a tap meant for the game can't pick a card by accident
-  if (id === 'draft' || id === 'gameover') {
+  if (id === 'draft' || id === 'gameover' || id === 'revive') {
     const el = $(id);
     el.classList.add('guard');
     clearTimeout(el._guard);
@@ -2523,6 +2601,23 @@ $('menu-missions-btn').onclick = () => show('missions');
 $('go-missions-btn').onclick = () => show('missions');
 $('go-home-btn').onclick = () => show('menu');
 $('go-nova').onclick = () => show('galaxy');
+$('go-double').onclick = async () => {
+  const btn = $('go-double');
+  if (btn.disabled || !run || !run.over || run.doubled) return;
+  btn.disabled = true;
+  const ok = await Ads.rewarded('double_stardust');
+  if (!ok) { btn.disabled = false; btn.textContent = 'Ad not available right now'; return; }
+  run.doubled = true;
+  const bonus = run.stardust;
+  addStardust(bonus);
+  persist();
+  Progress.refreshBadge();
+  const el = $('go-stardust');
+  el.innerHTML = '+' + ICON_S + fmt(run.stardust);
+  el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop');
+  btn.innerHTML = `✓ Doubled · +${ICON_S}${fmt(bonus)} extra`;
+  Sound.play('fanfare');
+};
 $('missions-close').onclick = () => show('menu');
 $('menu-bestiary-btn').onclick = () => show('bestiary');
 $('bst-close').onclick = () => show('menu');
@@ -2564,6 +2659,7 @@ const BACK_TO_MENU = ['observatory', 'missions', 'bestiary', 'settings', 'galaxy
 function goBack() {
   const open = OVERLAYS.find(o => !$(o).classList.contains('hidden'));
   if (open === 'pause') { resumeRun(); return true; }
+  if (open === 'revive') { if (!run.watchingAd) declineRevive(); return true; }
   if (BACK_TO_MENU.includes(open) || (open === 'howto' && save.tips.howto)) { show('menu'); return true; }
   if (open === 'gameover') { show('menu'); return true; }
   if (!open && run && !run.over) { pauseRun(); return true; }

@@ -31,6 +31,7 @@ export function simRun({ pulse = 'smart', muts = {}, bot = 'focus', maxWave = 60
   newRun();
   hideAll();
   paused = false;
+  run.revived = true; // the bot never watches the revive ad
   Object.assign(run.mut, muts);
   const pulseDmg0 = () => run.dmg.pulse || 0;
   let pulses = 0, buyT = 0;
