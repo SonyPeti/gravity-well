@@ -197,6 +197,12 @@ const FUSIONS = [
   { id: 'tidalWave',    fusion: ['tidalLock', 'chainPulse'],  icon: '🌊', name: 'Tidal Wave',    desc: 'Gravity Pulse breaks the lock: orbitals whirl at 3x speed for 4 s' },
 ];
 for (const f of FUSIONS) MUTATIONS.push(Object.assign(f, { rarity: 'fusion' }));
+const FUSE_OF = {}; // parent mutation id -> its fusion
+for (const f of FUSIONS) for (const id of f.fusion) FUSE_OF[id] = f;
+const fusePartner = id => MUT[FUSE_OF[id].fusion.find(p => p !== id)];
+// This card would complete a fusion you're halfway to
+const completesFusion = m => { const f = FUSE_OF[m.id]; return !!f && !mc(f.id) && !mc(m.id) && !!mc(fusePartner(m.id).id); };
+const fusionName = f => (save.fusions && save.fusions[f.id] ? f.name : 'a Fusion');
 const MUT = Object.fromEntries(MUTATIONS.map(m => [m.id, m]));
 const DRAFT_EVERY = 3; // waves
 
@@ -1094,21 +1100,27 @@ function rollMutations(n) {
   const pool = MUTATIONS.filter(m => !m.fusion && (m.stack || !mc(m.id)) && (!m.requires || Galaxy.has(m.requires)));
   const picks = [];
   while (picks.length < n && pool.length) {
-    const total = pool.reduce((s, m) => s + RARITY[m.rarity].weight, 0);
+    // The missing half of a fusion you've started comes up 3x as often, so pairs actually happen
+    const weight = m => RARITY[m.rarity].weight * (completesFusion(m) ? 3 : 1);
+    const total = pool.reduce((s, m) => s + weight(m), 0);
     let r = Math.random() * total;
     let idx = 0;
-    for (; idx < pool.length; idx++) { r -= RARITY[pool[idx].rarity].weight; if (r <= 0) break; }
+    for (; idx < pool.length; idx++) { r -= weight(pool[idx]); if (r <= 0) break; }
     picks.push(pool.splice(Math.min(idx, pool.length - 1), 1)[0]);
   }
   return picks;
 }
 
-// A ready fusion always takes the last slot, so a pair you built toward never gets lost to bad luck
+// A ready fusion always takes the middle slot, so a pair you built toward never gets lost to bad luck
 const readyFusions = () => FUSIONS.filter(f => !mc(f.id) && f.fusion.every(id => mc(id)));
 function rollDraft() {
   const opts = rollMutations(Galaxy.has('fourth') ? 4 : 3);
   const ready = readyFusions();
-  if (ready.length) opts.splice(Math.max(0, opts.length - 1), 1, ready[Math.floor(Math.random() * ready.length)]);
+  // Until a run has its first fusion, often slip in the missing half of a started pair so everyone gets to see one
+  const started = !FUSIONS.some(f => mc(f.id)) && !ready.length;
+  const halves = started ? MUTATIONS.filter(m => completesFusion(m) && !opts.includes(m)) : [];
+  if (halves.length && !opts.some(completesFusion) && Math.random() < 0.6) opts[opts.length - 1] = halves[Math.floor(Math.random() * halves.length)];
+  if (ready.length) opts.splice(Math.floor(opts.length / 2), 1, ready[Math.floor(Math.random() * ready.length)]);
   return opts;
 }
 
@@ -1121,21 +1133,47 @@ function openDraft() {
   show('draft');
   Sound.play('draft_open');
   Sound.muffle(true);
+  fusionReveal();
+}
+
+// The two parent icons slam together on the fusion card (CSS), so the payoff lands with a sound and a buzz
+let revealTimer = 0;
+function fusionReveal() {
+  clearTimeout(revealTimer);
+  if (!draftOptions.some(m => m.fusion)) return;
+  revealTimer = setTimeout(() => {
+    if (!run || !run.drafting) return;
+    Sound.play('fanfare');
+    vibrate([20, 40, 70]);
+  }, 1000);
 }
 
 function renderDraft() {
   const wrap = $('draft-cards');
   wrap.innerHTML = '';
   wrap.classList.toggle('four', draftOptions.length > 3);
+  const fusion = draftOptions.find(m => m.fusion);
+  const hot = draftOptions.some(completesFusion);
+  $('draft-title').textContent = fusion ? 'Fusion Ready!' : 'Choose a Mutation';
+  $('draft-title').classList.toggle('fuse', !!fusion);
+  $('draft-sub').textContent = fusion ? `Your ${fusion.fusion.map(id => MUT[id].name).join(' and ')} have merged into something new.`
+    : hot ? 'One of these completes a Fusion!' : 'Wave cleared. Your planet evolves.';
   for (const m of draftOptions) {
     const el = document.createElement('button');
-    el.className = 'mcard ' + m.rarity;
     const owned = mc(m.id);
+    // Fusion parents say what they pair with; the missing half of a started pair glows
+    const f = !m.fusion && FUSE_OF[m.id];
+    let tag = '';
+    if (f && !mc(f.id) && !owned) {
+      tag = completesFusion(m) ? `<div class="fuse-tag hot">⚗️ Completes ${fusionName(f)}!</div>`
+        : `<div class="fuse-tag">⚗️ Pairs with ${fusePartner(m.id).name}</div>`;
+    }
+    el.className = 'mcard ' + m.rarity + (completesFusion(m) ? ' fuse-hot' : '');
     el.innerHTML = `
       <div class="rarity">${RARITY[m.rarity].label}</div>
       <div class="micon">${mutIcon(m)}</div>
       <div class="mname">${m.name}</div>
-      <div class="mdesc">${m.desc}</div>
+      <div class="mdesc">${m.desc}</div>${tag}
       <div class="mcount">${m.fusion ? m.fusion.map(id => MUT[id].name).join(' + ') : owned ? 'Owned x' + owned : ''}</div>`;
     el.onclick = () => pickMutation(m);
     wrap.appendChild(el);
@@ -1158,7 +1196,9 @@ function pickMutation(m) {
   hideAll();
   refreshMutStrip();
   refreshUpgradeCards();
-  toast(`${mutIcon(m)} ${m.name}`);
+  const f = !m.fusion && FUSE_OF[m.id];
+  if (f && !mc(f.id) && mc(m.id) === 1 && mc(fusePartner(m.id).id)) toast(`⚗️ Fusion ready! Look for ${fusionName(f)} in your next draft`);
+  else toast(`${mutIcon(m)} ${m.name}`);
   Sound.play(m.fusion || m.rarity === 'legendary' || m.rarity === 'epic' ? 'fanfare' : 'card_pick');
   if (m.fusion) {
     if (!save.fusions) save.fusions = {};
@@ -1170,7 +1210,17 @@ function pickMutation(m) {
     banner('FUSION', m.name + (first ? ' · new discovery!' : ''), false);
     screenFlash('#3FF2E0');
     vibrate([30, 30, 30, 30, 80]);
-    run.shake = Math.min(6, run.shake + 3);
+    run.shake = 6;
+    slowmo(0.6, 0.35);
+    // A fusion shockwave from the planet: shoves everything back and shows the new power arriving
+    for (const e of run.enemies) {
+      const d = Math.hypot(e.x, e.y);
+      if (!e.dead && d < 260) e.kb += (e.boss ? 40 : 140) * (1 - d / 300);
+    }
+    run.waves.push({ x: 0, y: 0, r: PLANET_R, max: 260, t: 0.7, color: '#FFD34A' });
+    run.waves.push({ x: 0, y: 0, r: PLANET_R, max: 200, t: 0.55, color: '#3FF2E0' });
+    burst(0, 0, '#3FF2E0', 40, false);
+    burst(0, 0, '#FFD34A', 30, false);
   }
   else if (m.rarity === 'legendary') { screenFlash('#FFD34A'); vibrate([30, 30, 60]); }
   else if (m.rarity === 'epic') screenFlash('#B06CFF');
@@ -2285,6 +2335,8 @@ function refreshHud() {
 function refreshMutStrip() {
   const icons = [];
   for (const m of MUTATIONS) { const n = mc(m.id); if (n) icons.push(mutIcon(m) + (n > 1 ? `<sub>${n}</sub>` : '')); }
+  // Fusions first, so they stay visible when the strip overflows
+  icons.sort((a, b) => b.includes('fuse-ico') - a.includes('fuse-ico'));
   $('mut-strip').innerHTML = icons.join('');
 }
 
@@ -2714,6 +2766,7 @@ $('reroll-btn').onclick = () => {
   draftOptions = rollDraft();
   renderDraft();
   Sound.play('reroll');
+  fusionReveal();
 };
 
 function pauseRun() {

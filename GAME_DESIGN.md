@@ -50,7 +50,9 @@ Cards come in rarities: **Common (white) · Rare (blue) · Epic (purple) · Lege
 - **Second Gravity:** captured enemies keep their own small orbit.
 
 ### Fusions (as built)
-Own both parent mutations in one run and the fusion **always takes the last slot of every draft** until you pick it (rerolls keep it). Fusions keep the parents and upgrade them into something new. The Bestiary shows each recipe, but the result stays "???" until you've drafted it once, so there is always a pair to chase.
+Own both parent mutations in one run and the fusion **always takes the middle slot of every draft** until you pick it (rerolls keep it). The draft becomes "Fusion Ready!" and the two parent icons slam together on the card; picking it fires a shockwave from the planet.
+
+**Discovery:** every parent card says what it pairs with ("⚗️ Pairs with Kindling"). The missing half of a pair you started glows teal with a badge ("Completes a Fusion!") and rolls 3x as often, and until a run has its first fusion, a draft without one gets it slipped in 60% of the time. Measured: a player who follows the hints has a pair by wave 9 in ~74% of runs, a random picker by wave 15 in ~62%. Fusions keep the parents and upgrade them into something new. The Bestiary shows each recipe, but the result stays "???" until you've drafted it once, so there is always a pair to chase.
 
 | Fusion | Recipe | Effect |
 |---|---|---|
