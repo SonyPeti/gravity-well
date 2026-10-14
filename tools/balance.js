@@ -74,6 +74,34 @@ export function compare(n = 6) {
   return out;
 }
 
+// ---------- First runs on a brand-new save ----------
+// Plays `runs` consecutive runs from a fresh save (spending Stardust between them), `n` times over.
+// Returns the death waves per run index, e.g. { run1: '8 9 12 …', run2: … }. Reload the page afterwards.
+//   import('./tools/balance.js?' + Date.now()).then(m => m.early({ pulse: 'off' }))
+export function early({ n = 12, runs = 4, pulse = 'smart', bot = 'focus' } = {}) {
+  window.persist = () => {};
+  Sound.play = () => {};
+  const keep = { tips: save.tips, settings: save.settings };
+  const rows = Array.from({ length: runs }, () => []);
+  for (let k = 0; k < n; k++) {
+    for (const key of Object.keys(save)) delete save[key];
+    Object.assign(save, defaultSave(), keep);
+    for (let i = 0; i < runs; i++) {
+      simRun({ pulse, bot, maxWave: 200, maxMinutes: 60 });
+      if (!run.over) gameOver();
+      rows[i].push(run.wave);
+      spendStardust();
+    }
+  }
+  const out = {};
+  rows.forEach((r, i) => {
+    r.sort((a, b) => a - b);
+    out['run' + (i + 1)] = { avg: +(r.reduce((a, b) => a + b, 0) / r.length).toFixed(1), waves: r.join(' ') };
+  });
+  console.table(out);
+  return out;
+}
+
 // ---------- Long-term progression (Observatory → Supernova → Constellations) ----------
 // Plays from a fresh save until `hours` of game time or `maxGalaxy`, then restores the real save.
 // Results land in window.__prog (poll it; the page stays responsive between runs):

@@ -583,14 +583,17 @@ function shatter(o) {
 // ---------- Spawning ----------
 // [type, first wave, cumulative roll threshold]; checked top to bottom, the rest are drifters.
 // Shared by spawning and the Bestiary so the shown odds are always the real ones.
+// [type, first wave, full share of the swarm, waves to ramp up to that share]
+// New types fade in over a few waves instead of arriving at full strength (a sudden 20% molten wave was a wall).
 function spawnOdds() {
   return [
-    ['wraith', Galaxy.mod('earlyWraith') ? 8 : 15, 0.08],
-    ['molten', Galaxy.mod('earlyMolten') ? 4 : 7, 0.20],
-    ['scout', 5, 0.33],
-    ['comet', 3, Galaxy.mod('cometX2') || Challenge.has('comets') ? 0.70 : 0.55],
+    ['wraith', Galaxy.mod('earlyWraith') ? 8 : 15, 0.08, 4],
+    ['molten', Galaxy.mod('earlyMolten') ? 4 : 6, 0.12, 5],
+    ['scout', 4, 0.13, 3],
+    ['comet', 2, Galaxy.mod('cometX2') || Challenge.has('comets') ? 0.37 : 0.22, 2],
   ];
 }
+const oddsShare = (w, from, share, ramp) => w < from ? 0 : share * Math.min(1, (w - from + 1) / ramp);
 // Bosses rotate: World Eater (10, 40, 70…), Mothership (20, 50, 80…), Nebula Queen (30, 60, 90…)
 const BOSS_WAVE = w => {
   const step = Challenge.has('bossRush') ? 5 : 10;
@@ -604,21 +607,17 @@ function pickType(w, isFirst) {
   if (isFirst && BOSS_WAVE(w)) return BOSS_WAVE(w);
   const extra = Galaxy.extraSpawn(w);   // this galaxy's new enemies roll first
   if (extra) return extra;
-  const r = Math.random();
-  for (const [type, from, cum] of spawnOdds()) if (w >= from && r < cum) return type;
+  let r = Math.random();
+  for (const [type, ...o] of spawnOdds()) if ((r -= oddsShare(w, ...o)) < 0) return type;
   return 'drifter';
 }
 
 // Chance of each regular enemy type at a given wave (0..1)
 function spawnChances(w) {
   const res = {};
-  let prev = 0;
-  for (const [type, from, cum] of spawnOdds()) {
-    if (w < from) { res[type] = 0; continue; }
-    res[type] = cum - prev;
-    prev = cum;
-  }
-  res.drifter = 1 - prev;
+  let sum = 0;
+  for (const [type, ...o] of spawnOdds()) sum += res[type] = oddsShare(w, ...o);
+  res.drifter = 1 - sum;
   const { res: extra, left } = Galaxy.extraChances(w);
   for (const k in res) res[k] *= left;
   return Object.assign(res, extra);
@@ -632,12 +631,14 @@ function spawnEnemy(typeId, x, y, hpMult = 1) {
     const d = Math.hypot(W, H) / 2 / SCALE + PACE.spawnMargin;
     x = Math.cos(a) * d; y = Math.sin(a) * d;
   }
-  const hp = enemyHp(run.wave) * t.hp * hpMult;
+  // The very first boss (wave 10) is a gentler introduction to boss fights
+  const intro = t.boss && run.wave <= 10 ? 0.7 : 1;
+  const hp = enemyHp(run.wave) * t.hp * hpMult * intro;
   if (!save.seen) save.seen = {};
   save.seen[typeId] = true; // unlocks its Bestiary entry
   const e = {
     type: typeId, x, y, r: t.r, speed: t.speed * PACE.speed * rand(0.9, 1.1),
-    hp, maxHp: hp, dmg: enemyDmg(run.wave) * t.dmg, energy: t.energy,
+    hp, maxHp: hp, dmg: enemyDmg(run.wave) * t.dmg * intro, energy: t.energy,
     boss: !!t.boss, ranged: !!t.ranged, ghost: !!t.ghost,
     atk: 0.3, shoot: rand(1, 2), flash: 0, rot: Math.random() * TAU, spinV: rand(-1.5, 1.5),
     slow: 0, burn: 0, burnDps: 0, kb: 0, dead: false,
